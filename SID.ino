@@ -67,8 +67,6 @@ byte voice3_register = B00100000;
 byte filter_register = B00000000;
 byte mode_register   = B00000000;
 
-#define DEBUG 0
-
 void sid_transfer(byte sid_address, byte sid_data) {
   digitalWrite(ARDUINO_SPI_LATCH_PIN, LOW);
   shiftOut(ARDUINO_SPI_DATA_PIN, ARDUINO_SPI_CLOCK_PIN, LSBFIRST, sid_address);
@@ -76,12 +74,10 @@ void sid_transfer(byte sid_address, byte sid_data) {
 
   digitalWrite(ARDUINO_SPI_LATCH_PIN, HIGH);
 
-  #ifdef DEBUG
-    Serial.print(sid_address, BIN);
-    Serial.print(" ");
-    Serial.print(sid_data,    BIN);
-    Serial.print("\n");
-  #endif
+    // Serial.print(sid_address, BIN);
+    // Serial.print(" ");
+    // Serial.print(sid_data,    BIN);
+    // Serial.print("\n");
 
   // wait a small amount of time for the shift register latch data in
   delayMicroseconds(2);
@@ -210,9 +206,7 @@ void start_clock() {
 }
 
 void setup() {
-  #ifdef DEBUG
-    Serial.begin(9600);
-  #endif
+  // Serial.begin(9600);
 
   pinMode(ARDUINO_SPI_LATCH_PIN, OUTPUT);
   pinMode(ARDUINO_SPI_CLOCK_PIN, OUTPUT);
