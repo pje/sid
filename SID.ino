@@ -227,13 +227,6 @@ void setup() {
   sid_set_gate_on_voice_one();
 }
 
-word i = 274;
-
 void loop() {
-  sid_set_frequency_voice_one(i);
 
-  i++;
-  if (i >= 65535){
-    i = 274;
-  }
 }
