@@ -7,9 +7,5 @@ MONITOR_PORT?=/dev/tty.usbserial-A600afNY
 
 include Arduino-Makefile/Arduino.mk
 
-reset:
-	stty -f $(MONITOR_PORT) -hupcl
-
-.PHONY: reset
 
 .DEFAULT: upload
