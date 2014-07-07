@@ -172,27 +172,27 @@ void sid_set_frequency_voice_three(word frequency) {
   sid_set_voice_frequency(SID_V3_FL, SID_V3_FH, frequency);
 }
 
-void sid_set_on_voice_one() {
+void sid_set_gate_on_voice_one() {
   voice1_register |= B00000001;
   sid_transfer(SID_V1_CT, voice1_register);
 }
 
-void sid_set_off_voice_one() {
+void sid_set_gate_off_voice_one() {
   voice1_register &= B11111110;
   sid_transfer(SID_V1_CT, voice1_register);
 }
 
-void sid_set_on_voice_two() {
+void sid_set_gate_on_voice_two() {
   voice2_register |= B00000001;
   sid_transfer(SID_V2_CT, voice2_register);
 }
 
-void sid_set_on_voice_three() {
+void sid_set_gate_on_voice_three() {
   voice3_register |= B00000001;
   sid_transfer(SID_V3_CT, voice3_register);
 }
 
-void sid_set_off_voice_three() {
+void sid_set_gate_off_voice_three() {
   voice3_register &= B11111110;
   sid_transfer(SID_V3_CT, voice3_register);
 }
@@ -230,7 +230,7 @@ void setup() {
   sid_set_ad_envelope_voice_one(0, 0);
   sid_set_sr_envelope_voice_one(15, 0);
   sid_set_frequency_voice_one(1600);
-  sid_set_on_voice_one();
+  sid_set_gate_on_voice_one();
 }
 
 word i = 274;
