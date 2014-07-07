@@ -1,6 +1,8 @@
 const int ARDUINO_SPI_DATA_PIN  = 11;
 const int ARDUINO_SPI_CLOCK_PIN = 3;
 const int ARDUINO_SPI_LATCH_PIN = 13;
+const int ARDUINO_SID_CHIP_SELECT_PIN = 2;
+const int ARDUINO_SID_MASTER_CLOCK_PIN = 9;
 
 // 1-bit* flags
 const byte SID_NOISE       = B10000000; // 128;
@@ -65,16 +67,30 @@ byte voice3_register = B00100000;
 byte filter_register = B00000000;
 byte mode_register   = B00000000;
 
+#define DEBUG 0
+
 void sid_transfer(byte sid_address, byte sid_data) {
   digitalWrite(ARDUINO_SPI_LATCH_PIN, LOW);
   shiftOut(ARDUINO_SPI_DATA_PIN, ARDUINO_SPI_CLOCK_PIN, LSBFIRST, sid_address);
   shiftOut(ARDUINO_SPI_DATA_PIN, ARDUINO_SPI_CLOCK_PIN, LSBFIRST, sid_data);
+
   digitalWrite(ARDUINO_SPI_LATCH_PIN, HIGH);
 
-  Serial.print(sid_address, BIN);
-  Serial.print(" ");
-  Serial.print(sid_data,    BIN);
-  Serial.print("\n");
+  #ifdef DEBUG
+    Serial.print(sid_address, BIN);
+    Serial.print(" ");
+    Serial.print(sid_data,    BIN);
+    Serial.print("\n");
+  #endif
+
+  // wait a small amount of time for the shift register latch data in
+  delayMicroseconds(2);
+  // enable write mode on the SID ("CS must be low for any transfer")
+  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, LOW);
+  // 2 microseconds should be enough for a single clock pulse to get through
+  delayMicroseconds(2);
+  // disable write mode on the SID ("A read can only occur if CS is low, Ø2 is high and r/w is low")
+  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
 }
 
 void sid_zero_all_registers() {
@@ -158,16 +174,31 @@ void sid_set_frequency_voice_three(word frequency) {
 
 void sid_set_on_voice_one() {
   voice1_register |= B00000001;
-  transfer(SID_V1_CT, voice1_register);
+  sid_transfer(SID_V1_CT, voice1_register);
 }
 
 void sid_set_off_voice_one() {
   voice1_register &= B11111110;
-  transfer(SID_V1_CT, voice1_register);
+  sid_transfer(SID_V1_CT, voice1_register);
 }
 
-void start_clock(int arduino_sid_clock_pin) {
-  pinMode(arduino_sid_clock_pin, OUTPUT);
+void sid_set_on_voice_two() {
+  voice2_register |= B00000001;
+  sid_transfer(SID_V2_CT, voice2_register);
+}
+
+void sid_set_on_voice_three() {
+  voice3_register |= B00000001;
+  sid_transfer(SID_V3_CT, voice3_register);
+}
+
+void sid_set_off_voice_three() {
+  voice3_register &= B11111110;
+  sid_transfer(SID_V3_CT, voice3_register);
+}
+
+void start_clock() {
+  pinMode(ARDUINO_SID_MASTER_CLOCK_PIN, OUTPUT);
 
   TCCR1A = 0;
   TCCR1B = 0;
@@ -179,59 +210,36 @@ void start_clock(int arduino_sid_clock_pin) {
 }
 
 void setup() {
-  start_clock(9);
+  #ifdef DEBUG
+    Serial.begin(9600);
+  #endif
 
   pinMode(ARDUINO_SPI_LATCH_PIN, OUTPUT);
   pinMode(ARDUINO_SPI_CLOCK_PIN, OUTPUT);
   pinMode(ARDUINO_SPI_DATA_PIN, OUTPUT);
+  pinMode(ARDUINO_SID_CHIP_SELECT_PIN, OUTPUT);
 
-  int delay_time = 2000;
+  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
+  digitalWrite(ARDUINO_SPI_LATCH_PIN, LOW);
+
+  start_clock(); // SID requires a 1MHz clock pulse
 
   sid_zero_all_registers();
-    delay(delay_time);
   sid_set_volume(15);
-    delay(delay_time);
   sid_set_waveform_voice_one(SID_RAMP);
-    delay(delay_time);
   sid_set_ad_envelope_voice_one(0, 0);
-    delay(delay_time);
   sid_set_sr_envelope_voice_one(15, 0);
-    delay(delay_time);
   sid_set_frequency_voice_one(1600);
-    delay(delay_time);
   sid_set_on_voice_one();
-
-  // sid_zero_all_registers:
-  // 00000000 00000000 // 00 00
-  // 00000001 00000000 // 01 00
-  // 00000010 00000000 // 02 00
-  // 00000011 00000000 // 03 00
-  // ...
-  // 00011000 00000000 // 24 00
-  //
-  // sid_set_volume(15):
-  // 00011000 00001111 // 24 04
-  //
-  // sid_set_waveform_voice_one(SID_RAMP):
-  // 00000100 00100000 // 04 32
-  //
-  // sid_set_ad_envelope_voice_one(0, 0):
-  // 00000000 00000000 // 05 00
-  //
-  // sid_set_sr_envelope_voice_one(15, 0):
-  // 00010100 11110000 // 20 240
-  //
-  // sid_set_frequency_voice_one(1600):
-  // 00000000 01000000 // 00 64
-  // 00000001 00000110 // 01 06
-  //
-  // sid_set_on_voice_one():
-  // 00000100 00100001 // 04 33
 }
 
-byte b = 0;
+word i = 274;
 
 void loop() {
-  // sid_transfer(B00001, b++);
-  // delay(500);
+  sid_set_frequency_voice_one(i);
+
+  i++;
+  if (i >= 65535){
+    i = 274;
+  }
 }
