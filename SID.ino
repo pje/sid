@@ -89,7 +89,7 @@ void sid_transfer(byte sid_address, byte sid_data) {
   digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, LOW);
   // 2 microseconds should be enough for a single clock pulse to get through
   delayMicroseconds(2);
-  // disable write mode on the SID ("A read can only occur if CS is low, Ø2 is high and r/w is low")
+  // disable write mode on the SID ("A write can only occur if CS is low, Ø2 is high and r/w is low")
   digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
 }
 
