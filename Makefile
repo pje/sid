@@ -7,5 +7,7 @@ MONITOR_PORT?=/dev/tty.usbserial-A600afNY
 
 include Arduino-Makefile/Arduino.mk
 
+# serial_monitor:
+	# screen /dev/tty.usbserial-A600afNY 9600
 
 .DEFAULT: upload
