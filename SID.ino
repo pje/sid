@@ -1,8 +1,4 @@
-const int ARDUINO_SPI_DATA_PIN  = 11;
-const int ARDUINO_SPI_CLOCK_PIN = 3;
-const int ARDUINO_SPI_LATCH_PIN = 13;
-const int ARDUINO_SID_CHIP_SELECT_PIN = 2;
-const int ARDUINO_SID_MASTER_CLOCK_PIN = 9;
+const int ARDUINO_SID_CHIP_SELECT_PIN = 13;
 
 // 1-bit* flags
 const byte SID_NOISE       = B10000000; // 128;
@@ -68,25 +64,12 @@ byte filter_register = B00000000;
 byte mode_register   = B00000000;
 
 void sid_transfer(byte sid_address, byte sid_data) {
-  digitalWrite(ARDUINO_SPI_LATCH_PIN, LOW);
-  shiftOut(ARDUINO_SPI_DATA_PIN, ARDUINO_SPI_CLOCK_PIN, LSBFIRST, sid_address);
-  shiftOut(ARDUINO_SPI_DATA_PIN, ARDUINO_SPI_CLOCK_PIN, LSBFIRST, sid_data);
-
-  digitalWrite(ARDUINO_SPI_LATCH_PIN, HIGH);
-
-    // Serial.print(sid_address, BIN);
-    // Serial.print(" ");
-    // Serial.print(sid_data,    BIN);
-    // Serial.print("\n");
-
-  // wait a small amount of time for the shift register latch data in
-  delayMicroseconds(2);
-  // enable write mode on the SID ("CS must be low for any transfer")
-  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, LOW);
-  // 2 microseconds should be enough for a single clock pulse to get through
-  delayMicroseconds(2);
-  // disable write mode on the SID ("A write can only occur if CS is low, Ø2 is high and r/w is low")
-  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
+  sid_address &= B00011111; // SID addresses are <= 5 bits
+  PORTD = sid_address;
+  PORTB = sid_data;
+  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, LOW); // enable write mode on the SID ("CS must be low for any transfer")
+  delayMicroseconds(2);   // 2 microseconds should be enough for a single clock pulse to get through
+  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);   // disable write mode on the SID ("A write can only occur if CS is low, Ø2 is high and r/w is low")
 }
 
 void sid_zero_all_registers() {
@@ -193,40 +176,48 @@ void sid_set_gate_off_voice_three() {
   sid_transfer(SID_V3_CT, voice3_register);
 }
 
-void start_clock() {
-  pinMode(ARDUINO_SID_MASTER_CLOCK_PIN, OUTPUT);
-
-  TCCR1A = 0;
-  TCCR1B = 0;
-  TCNT1 = 0;
-  OCR1A = 7;
-  TCCR1A |= (1 << COM1A0);
-  TCCR1B |= (1 << WGM12);
-  TCCR1B |= (1 << CS10);
-}
-
 void setup() {
-  // Serial.begin(9600);
+  DDRD = B00011111; // initialize 5 PORTD pins as output (connected to A0-A4)
+  DDRB = B11111111; // initialize 8 PORTB pins as output (connected to D0-D7)
 
-  pinMode(ARDUINO_SPI_LATCH_PIN, OUTPUT);
-  pinMode(ARDUINO_SPI_CLOCK_PIN, OUTPUT);
-  pinMode(ARDUINO_SPI_DATA_PIN, OUTPUT);
   pinMode(ARDUINO_SID_CHIP_SELECT_PIN, OUTPUT);
-
   digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
-  digitalWrite(ARDUINO_SPI_LATCH_PIN, LOW);
-
-  start_clock(); // SID requires a 1MHz clock pulse
 
   sid_zero_all_registers();
   sid_set_volume(15);
-  sid_set_waveform_voice_one(SID_RAMP);
   sid_set_ad_envelope_voice_one(0, 0);
   sid_set_sr_envelope_voice_one(15, 0);
-  sid_set_frequency_voice_one(1600);
+  sid_set_waveform_voice_one(SID_SQUARE);
+  sid_set_frequency_voice_one(6288);
+  sid_set_gate_on_voice_one();
+  sid_set_gate_off_voice_one();
   sid_set_gate_on_voice_one();
 }
 
-void loop() {
+void loop () {
+  for(int i = 274; i < 66288; i++) {
+    sid_set_frequency_voice_one(i);
+  }
+  sid_zero_all_registers();
+  sid_set_volume(15);
+  sid_set_ad_envelope_voice_one(0, 0);
+  sid_set_sr_envelope_voice_one(15, 0);
+  sid_set_waveform_voice_one(SID_RAMP);
+  sid_set_frequency_voice_one(6288);
+  sid_set_frequency_voice_one(6288);
+  sid_set_gate_on_voice_one();
 
+  sid_set_ad_envelope_voice_two(0, 0);
+  sid_set_sr_envelope_voice_two(15, 0);
+  sid_set_waveform_voice_two(SID_SQUARE);
+  sid_set_frequency_voice_two(6288);
+  sid_set_frequency_voice_two(6288);
+  sid_set_gate_on_voice_two();
+
+  sid_set_ad_envelope_voice_three(0, 0);
+  sid_set_sr_envelope_voice_three(15, 0);
+  sid_set_waveform_voice_three(SID_TRIANGLE);
+  sid_set_frequency_voice_three(6288);
+  sid_set_frequency_voice_three(6288);
+  sid_set_gate_on_voice_three();
 }
