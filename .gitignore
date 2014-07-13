@@ -1,1 +1,2 @@
-build-atmega328/
+build-*/
+
