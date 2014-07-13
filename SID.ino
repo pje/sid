@@ -1,9 +1,7 @@
-#include <math.h>
-
 const int ARDUINO_SID_CHIP_SELECT_PIN = 13;
 const int ARDUINO_SID_MASTER_CLOCK_PIN = 5;
 
-const double TWELFTH_ROOT_OF_TWO = pow(2.0, (1.0 / 12.0));
+const double TWELFTH_ROOT_OF_TWO = 1.0594630943592953;
 const double CLOCK_SIGNAL_FACTOR = 0.0596;
 
 // 1-bit* flags
