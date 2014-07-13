@@ -1,6 +1,7 @@
 #include <math.h>
 
 const int ARDUINO_SID_CHIP_SELECT_PIN = 13;
+const int ARDUINO_SID_MASTER_CLOCK_PIN = 5;
 
 const double TWELFTH_ROOT_OF_TWO = pow(2.0, (1.0 / 12.0));
 const double CLOCK_SIGNAL_FACTOR = 0.0596;
@@ -199,9 +200,22 @@ void play(word frequency) {
   delay(200);
 }
 
+void start_clock() {
+  pinMode(ARDUINO_SID_MASTER_CLOCK_PIN, OUTPUT);
+  TCCR3A = 0;
+  TCCR3B = 0;
+  TCNT3 = 0;
+  OCR3A = 7;
+  TCCR3A |= (1 << COM3A0);
+  TCCR3B |= (1 << WGM32);
+  TCCR3B |= (1 << CS30);
+}
+
 void setup() {
   DDRD = B00011111; // initialize 5 PORTD pins as output (connected to A0-A4)
   DDRB = B11111111; // initialize 8 PORTB pins as output (connected to D0-D7)
+
+  start_clock();
 
   pinMode(ARDUINO_SID_CHIP_SELECT_PIN, OUTPUT);
   digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
