@@ -1,4 +1,9 @@
+#include <math.h>
+
 const int ARDUINO_SID_CHIP_SELECT_PIN = 13;
+
+const double TWELFTH_ROOT_OF_TWO = pow(2.0, (1.0 / 12.0));
+const double CLOCK_SIGNAL_FACTOR = 0.0596;
 
 // 1-bit* flags
 const byte SID_NOISE       = B10000000; // 128;
@@ -67,9 +72,9 @@ void sid_transfer(byte sid_address, byte sid_data) {
   sid_address &= B00011111; // SID addresses are <= 5 bits
   PORTD = sid_address;
   PORTB = sid_data;
-  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, LOW); // enable write mode on the SID ("CS must be low for any transfer")
-  delayMicroseconds(2);   // 2 microseconds should be enough for a single clock pulse to get through
-  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);   // disable write mode on the SID ("A write can only occur if CS is low, Ø2 is high and r/w is low")
+  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, LOW);     // enable write mode on the SID ("CS must be low for any transfer")
+  delayMicroseconds(2);                               // 2 microseconds should be enough for a single clock pulse to get through
+  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);    // disable write mode on the SID ("A write can only occur if CS is low, Ø2 is high and r/w is low")
 }
 
 void sid_zero_all_registers() {
@@ -166,6 +171,11 @@ void sid_set_gate_on_voice_two() {
   sid_transfer(SID_V2_CT, voice2_register);
 }
 
+void sid_set_gate_off_voice_two() {
+  voice2_register &= B11111110;
+  sid_transfer(SID_V2_CT, voice2_register);
+}
+
 void sid_set_gate_on_voice_three() {
   voice3_register |= B00000001;
   sid_transfer(SID_V3_CT, voice3_register);
@@ -176,6 +186,19 @@ void sid_set_gate_off_voice_three() {
   sid_transfer(SID_V3_CT, voice3_register);
 }
 
+void play(word frequency) {
+  sid_set_waveform_voice_one(SID_TRIANGLE);
+  // sid_set_waveform_voice_two(SID_SQUARE);
+  sid_set_frequency_voice_one((frequency / CLOCK_SIGNAL_FACTOR));
+  // sid_set_frequency_voice_two((frequency / CLOCK_SIGNAL_FACTOR));
+  sid_set_gate_on_voice_one();
+  // sid_set_gate_on_voice_two();
+  delay(100);
+  sid_set_gate_off_voice_one();
+  // sid_set_gate_off_voice_two();
+  delay(200);
+}
+
 void setup() {
   DDRD = B00011111; // initialize 5 PORTD pins as output (connected to A0-A4)
   DDRB = B11111111; // initialize 8 PORTB pins as output (connected to D0-D7)
@@ -184,40 +207,34 @@ void setup() {
   digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
 
   sid_zero_all_registers();
+  sid_set_ad_envelope_voice_one(0, 6);
+  sid_set_sr_envelope_voice_one(0, 0);
+  sid_set_ad_envelope_voice_two(0, 6);
+  sid_set_sr_envelope_voice_two(0, 0);
   sid_set_volume(15);
-  sid_set_ad_envelope_voice_one(0, 0);
-  sid_set_sr_envelope_voice_one(15, 0);
-  sid_set_waveform_voice_one(SID_SQUARE);
-  sid_set_frequency_voice_one(6288);
-  sid_set_gate_on_voice_one();
-  sid_set_gate_off_voice_one();
-  sid_set_gate_on_voice_one();
 }
 
 void loop () {
-  for(int i = 274; i < 66288; i++) {
-    sid_set_frequency_voice_one(i);
+  double an4 = 440.00;
+  double cs4 = 554.37;
+  double en5 = 659.25;
+  double gs5 = 830.61;
+  double an5 = 880.00;
+
+  while (true) {
+    sid_set_volume(4);
+    play(an4);
+    sid_set_volume(7);
+    play(cs4);
+    sid_set_volume(12);
+    play(en5);
+    sid_set_volume(15);
+    play(gs5);
+    play(an5);
+    play(gs5);
+    sid_set_volume(12);
+    play(en5);
+    sid_set_volume(7);
+    play(cs4);
   }
-  sid_zero_all_registers();
-  sid_set_volume(15);
-  sid_set_ad_envelope_voice_one(0, 0);
-  sid_set_sr_envelope_voice_one(15, 0);
-  sid_set_waveform_voice_one(SID_RAMP);
-  sid_set_frequency_voice_one(6288);
-  sid_set_frequency_voice_one(6288);
-  sid_set_gate_on_voice_one();
-
-  sid_set_ad_envelope_voice_two(0, 0);
-  sid_set_sr_envelope_voice_two(15, 0);
-  sid_set_waveform_voice_two(SID_SQUARE);
-  sid_set_frequency_voice_two(6288);
-  sid_set_frequency_voice_two(6288);
-  sid_set_gate_on_voice_two();
-
-  sid_set_ad_envelope_voice_three(0, 0);
-  sid_set_sr_envelope_voice_three(15, 0);
-  sid_set_waveform_voice_three(SID_TRIANGLE);
-  sid_set_frequency_voice_three(6288);
-  sid_set_frequency_voice_three(6288);
-  sid_set_gate_on_voice_three();
 }
