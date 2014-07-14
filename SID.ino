@@ -254,7 +254,6 @@ void loop () {
               }
             }
             sid_set_gate(note_voice, false);
-            // initial_hertz * (2 ** (half_steps / 12.0))
             sid_set_voice_frequency(note_voice, (word)(MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, (current_pitchbend_amount * midi_pitch_bend_max_semitones) / 12.0)));
             sid_set_gate(note_voice, true);
           }
