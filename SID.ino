@@ -177,13 +177,12 @@ void setup() {
   sid_zero_all_registers();
   for (int i = 0; i < 3; i++) {
     sid_set_waveform(i, SID_TRIANGLE);
-    sid_set_ad_envelope(i, 0, 15);
+    sid_set_ad_envelope(i, 0, 13);
     sid_set_sr_envelope(i, 0, 0);
   }
   sid_set_volume(15);
 
   Serial1.begin(31250, SERIAL_8N1);
-  // Serial.begin(31250);
 }
 
 void loop () {
