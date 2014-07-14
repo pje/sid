@@ -57,16 +57,15 @@ PB5     Digital Pin 9            D5
 PB6     Digital Pin 10           D6
 PB7     Digital Pin 11           D7
 
-PD0     Digital Pin 3            A0
-PD1     Digital Pin 2            A1
-PD2     RX                       A2
-PD3     TX                       A3
-PD4     Digital Pin 4            A4
-PD5     TXLED
-PD6     Digital Pin 12
-PD7     Digital Pin 6
+
+PF0     Analog In 5              A0
+PF1     Analog In 4              A1
+PF2     -
+PF3     -
+PF4     Analog In 3              A2
+PF5     Analog In 2              A3
+PF6     Analog In 1              A4
+PF7     Analog In 0              -
+
 
         Digital Pin 13           CS
-
-
-

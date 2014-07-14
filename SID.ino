@@ -53,7 +53,16 @@ byte mode_register_state_byte   = B00000000;
 
 void sid_transfer(byte address, byte data) {
   address &= B00011111;
-  PORTD = address;
+
+  // PORTF is a weird 6-bit register (8 bits, but bits 2 and 3 don't exist)
+  //
+  // Port F Data Register — PORTF
+  // bit  7    6    5    4    3    2    1    0
+  //      F7   F6   F5   F4   -    -    F1   F0
+  //
+  // addr -    A4   A3   A2   -    -    A1   A0
+
+  PORTF = ((address << 2) & B01110000) | (address & B00000011);
   PORTB = data;
   digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, LOW);     // enable write mode on the SID ("CS must be low for any transfer")
   delayMicroseconds(2);                               // 2 microseconds should be enough for a single clock pulse to get through
@@ -143,7 +152,7 @@ void start_clock() {
 }
 
 void setup() {
-  DDRD = B00011111; // initialize 5 PORTD pins as output (connected to A0-A4)
+  DDRF = B01110011; // initialize 5 PORTF pins as output (connected to A0-A4)
   DDRB = B11111111; // initialize 8 PORTB pins as output (connected to D0-D7)
 
   start_clock();
