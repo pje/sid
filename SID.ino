@@ -52,10 +52,31 @@ byte voice_control_register_state_bytes[3] = {
 byte filter_register_state_byte = B00000000;
 byte mode_register_state_byte   = B00000000;
 
-const byte MIDI_NOTE_ON      = B1001;
-const byte MIDI_NOTE_OFF     = B1000;
-const byte MIDI_PITCH_BEND   = B1110;
-const byte MIDI_TIMING_CLOCK = B11111000;
+const byte MIDI_NOTE_ON        = B1001;
+const byte MIDI_NOTE_OFF       = B1000;
+const byte MIDI_PITCH_BEND     = B1110;
+const byte MIDI_CONTROL_CHANGE = B1011;
+const byte MIDI_PROGRAM_CHANGE = B1100;
+const byte MIDI_TIMING_CLOCK   = B11111000;
+
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_SQUARE     = 12;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_TRIANGLE   = 13;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_RAMP       = 14;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_SQUARE     = 12;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_TRIANGLE   = 13;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_RAMP       = 14;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_SQUARE   = 12;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_TRIANGLE = 13;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_RAMP     = 14;
+const byte MIDI_CONTROL_CHANGE_SET_FILTER_MODE_LP                = 15;
+const byte MIDI_CONTROL_CHANGE_SET_FILTER_MODE_BP                = 16;
+const byte MIDI_CONTROL_CHANGE_SET_FILTER_MODE_HP                = 17;
+const byte MIDI_CONTROL_CHANGE_SET_VOICE_ONE_FILTER              = 18;
+const byte MIDI_CONTROL_CHANGE_SET_VOICE_TWO_FILTER              = 18;
+const byte MIDI_CONTROL_CHANGE_SET_VOICE_THREE_FILTER            = 18;
+const byte MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY              = 36;
+const byte MIDI_CONTROL_CHANGE_SET_FILTER_RESONANCE              = 37;
+const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_FREQUENCY         = 38;
 
 const byte MIDI_CHANNEL = 0; // "channel 1" (zero-indexed)
 
@@ -116,6 +137,46 @@ void sid_set_sr_envelope(int voice, byte sustain, byte release) {
   byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_ENVELOPE_SR;
   byte data = (release & B00001111) | (sustain << 4);
   sid_transfer(address, data);
+}
+
+void sid_set_pulse_width(byte voice, word hertz) {
+  byte lo = lowByte(hertz);
+  byte hi = highByte(hertz) & B00001111;
+  byte address_lo = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_PULSE_WIDTH_LO;
+  byte address_hi = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_PULSE_WIDTH_HI;
+  sid_transfer(address_lo, lo);
+  sid_transfer(address_hi, hi);
+}
+
+void sid_set_filter_frequency(word hertz) {
+  byte lo = lowByte(hertz) & B00000111;
+  byte hi = highByte(hertz << 5);
+  sid_transfer(SID_FL_FL, lo);
+  sid_transfer(SID_FL_FH, hi);
+}
+
+void sid_set_filter_resonance(byte hertz) {
+  filter_register_state_byte &= B00001111;
+  filter_register_state_byte |= (hertz << 4);
+  sid_transfer(SID_FL_RES_CT, filter_register_state_byte);
+}
+
+void sid_set_filter(byte voice, boolean on) {
+  byte voice_filter_mask;
+  if(voice == 0) {
+    voice_filter_mask = SID_FILT_VOICE1;
+  } else if(voice == 1) {
+    voice_filter_mask = SID_FILT_VOICE2;
+  } else if(voice == 2) {
+    voice_filter_mask = SID_FILT_VOICE3;
+  }
+  if(on) {
+    filter_register_state_byte |= voice_filter_mask;
+  } else {
+    filter_register_state_byte &= ~voice_filter_mask;
+  }
+
+  sid_transfer(SID_FL_RES_CT, filter_register_state_byte);
 }
 
 void sid_set_filter_mode(byte mode) {
@@ -189,86 +250,127 @@ void loop () {
   if (Serial1.available() > 0) {
     byte incomingByte = Serial1.read();
     byte opcode = incomingByte >> 4;
-    byte note_number = 0;
-    byte note_velocity = 0;
-    byte current_note_0_temp = 0;
-    byte current_note_1_temp = 0;
-    byte current_note_2_temp = 0;
+    byte data_byte_one = 0;
+    byte data_byte_two = 0;
     int note_voice = 0;
-    byte pitchbend_lsb = 0;
-    byte pitchbend_msb = 0;
     word pitchbend = 8192.0;
+    byte controller_number = 0;
+    byte controller_value = 0;
+    double temp_double = 0.0;
 
-    if(incomingByte != MIDI_TIMING_CLOCK) {
+    if(opcode >= B1000 && opcode <= B1110) { // Channel Voice/Mode Messages
       switch(opcode) {
-        case MIDI_PITCH_BEND :
-          while (Serial1.available() <= 0) {
-            delayMicroseconds(1);
-          }
-          pitchbend_lsb = Serial1.read();
-          while (Serial1.available() <= 0) {
-            delayMicroseconds(1);
-          }
-          pitchbend_msb = Serial1.read();
+        case MIDI_CONTROL_CHANGE :
+          while (Serial1.available() <= 0) { delayMicroseconds(1); }
+          data_byte_one = Serial1.read();
+          while (Serial1.available() <= 0) { delayMicroseconds(1); }
+          data_byte_two = Serial1.read();
+          controller_number = data_byte_one;
+          controller_value = data_byte_two;
 
-          pitchbend = pitchbend_msb;
+          switch(controller_number) {
+            case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_SQUARE:
+              sid_set_waveform(0, SID_SQUARE);
+              sid_set_waveform(1, SID_SQUARE);
+              sid_set_waveform(2, SID_SQUARE);
+              break;
+
+            case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_TRIANGLE:
+              sid_set_waveform(0, SID_TRIANGLE);
+              sid_set_waveform(1, SID_TRIANGLE);
+              sid_set_waveform(2, SID_TRIANGLE);
+              break;
+
+            case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_RAMP:
+              sid_set_waveform(0, SID_RAMP);
+              sid_set_waveform(1, SID_RAMP);
+              sid_set_waveform(2, SID_RAMP);
+              break;
+
+            case MIDI_CONTROL_CHANGE_SET_FILTER_MODE_LP:
+              sid_set_filter_mode(SID_FILT_LP);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_FILTER_MODE_BP:
+              sid_set_filter_mode(SID_FILT_BP);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_FILTER_MODE_HP:
+              sid_set_filter_mode(SID_FILT_HP);
+              break;
+
+            case MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY:
+              temp_double = (data_byte_two / 127.0) * 2048.0; // 11-bit
+              sid_set_filter_frequency((word)temp_double);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_FILTER_RESONANCE:
+              temp_double = (data_byte_two / 127.0) * 16.0;  // 4-bit
+              sid_set_filter_resonance((byte)temp_double);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_FREQUENCY:
+              temp_double = (data_byte_two / 127.0) * 4096.0; // 12-bit
+              sid_set_pulse_width(0, (word)temp_double);
+              sid_set_pulse_width(1, (word)temp_double);
+              sid_set_pulse_width(2, (word)temp_double);
+              break;
+
+            case MIDI_CONTROL_CHANGE_SET_VOICE_ONE_FILTER:
+              sid_set_filter(0, data_byte_two == 127);
+              sid_set_filter(1, data_byte_two == 127);
+              sid_set_filter(2, data_byte_two == 127);
+              break;
+          }
+          break;
+        case MIDI_PITCH_BEND :
+          while (Serial1.available() <= 0) { delayMicroseconds(1); }
+          data_byte_one = Serial1.read();
+          while (Serial1.available() <= 0) { delayMicroseconds(1); }
+          data_byte_two = Serial1.read();
+
+          pitchbend = data_byte_two;
           pitchbend = (pitchbend << 7);
-          pitchbend |= pitchbend_lsb;
+          pitchbend |= data_byte_one;
           current_pitchbend_amount = ((pitchbend / 8192.0) - 1); // 8192 is the middle pitchbend value (half of 2**14)
           for (int i = 0; i < polyphony; i++) {
             if (current_notes[i] != NULL) {
               note_voice = i;
-              note_number = current_notes[i];
-              sid_set_voice_frequency(note_voice, (word)(MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, (current_pitchbend_amount * midi_pitch_bend_max_semitones) / 12.0)));
+              sid_set_voice_frequency(note_voice, (word)(MIDI_NOTES_TO_FREQUENCIES[current_notes[i]] * pow(2, (current_pitchbend_amount * midi_pitch_bend_max_semitones) / 12.0)));
             }
           }
           break;
         case MIDI_NOTE_ON :
-          while (Serial1.available() <= 0) {
-            delayMicroseconds(1);
-          }
-          note_number = Serial1.read();
-          while (Serial1.available() <= 0) {
-            delayMicroseconds(1);
-          }
-          note_velocity = Serial1.read();
-          if (note_number < 96) { // SID can't handle freqs > B7
+          while (Serial1.available() <= 0) { delayMicroseconds(1); }
+          data_byte_one = Serial1.read();
+          while (Serial1.available() <= 0) { delayMicroseconds(1); }
+          data_byte_two = Serial1.read();
+          if (data_byte_one < 96) { // SID can't handle freqs > B7
 
             for (int i = 0; i < polyphony; i++) {
               if (current_notes[i] == NULL) {
-                current_notes[i] = note_number;
+                current_notes[i] = data_byte_one;
                 note_voice = i;
                 break;
               }
               else {
                 if (i == (polyphony - 1)) {
-                  current_note_0_temp = current_notes[0];
-                  current_note_1_temp = current_notes[1];
-                  current_note_2_temp = current_notes[2];
-                  current_notes[0] = current_note_1_temp;
-                  current_notes[1] = current_note_2_temp;
-                  current_notes[2] = note_number;
+                  current_notes[0] = current_notes[1];
+                  current_notes[1] = current_notes[2];
+                  current_notes[2] = data_byte_one;
                   note_voice = i;
                   break;
                 }
               }
             }
             sid_set_gate(note_voice, false);
-            sid_set_voice_frequency(note_voice, (word)(MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, (current_pitchbend_amount * midi_pitch_bend_max_semitones) / 12.0)));
+            sid_set_voice_frequency(note_voice, (word)(MIDI_NOTES_TO_FREQUENCIES[data_byte_one] * pow(2, (current_pitchbend_amount * midi_pitch_bend_max_semitones) / 12.0)));
             sid_set_gate(note_voice, true);
           }
           break;
         case MIDI_NOTE_OFF :
-          while (Serial1.available() <= 0) {
-            delayMicroseconds(1);
-          }
-          note_number = Serial1.read();
-          while (Serial1.available() <= 0) {
-            delayMicroseconds(1);
-          }
-          note_velocity = Serial1.read();
+          while (Serial1.available() <= 0) { delayMicroseconds(1); }
+          data_byte_one = Serial1.read();
+          while (Serial1.available() <= 0) { delayMicroseconds(1); }
+          data_byte_two = Serial1.read();
           for (int i = 0; i < polyphony; i++) {
-            if (current_notes[i] == note_number) {
+            if (current_notes[i] == data_byte_one) {
               current_notes[i] = NULL;
               note_voice = i;
               sid_set_gate(note_voice, false);
