@@ -79,6 +79,8 @@ const byte MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY              = 12;
 const byte MIDI_CONTROL_CHANGE_SET_FILTER_RESONANCE              = 13;
 const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_FREQUENCY         = 14;
 
+const byte MIDI_CONTROL_CHANGE_SET_VOLUME                        = 19;
+
 const byte MIDI_CHANNEL = 0; // "channel 1" (zero-indexed)
 
 const byte MAX_POLYPHONY = 3;
@@ -317,6 +319,11 @@ void loop () {
               sid_set_filter(0, data_byte_two == 127);
               sid_set_filter(1, data_byte_two == 127);
               sid_set_filter(2, data_byte_two == 127);
+              break;
+
+            case MIDI_CONTROL_CHANGE_SET_VOLUME:
+              temp_double = (data_byte_two / 127.0) * 15; // 4-bit
+              sid_set_volume((word)temp_double);
               break;
           }
           break;
