@@ -24,7 +24,7 @@ const byte SID_SQUARE      = B01000000; //  64;
 const byte SID_RAMP        = B00100000; //  32;
 const byte SID_TRIANGLE    = B00010000; //  16;
 const byte SID_TEST        = B00001000; //   8;
-const byte SID_RING        = B00010100; //  20; // requires triangle
+const byte SID_RING        = B00000100; //  20; // requires triangle
 const byte SID_SYNC        = B01000010; //  66; // requires OSC3 at freq > 0
 const byte SID_3OFF        = B10000000; // 128;
 const byte SID_FILT_HP     = B01000000; //  64;
@@ -71,34 +71,60 @@ const byte MIDI_CONTROL_CHANGE = B1011;
 const byte MIDI_PROGRAM_CHANGE = B1100;
 const byte MIDI_TIMING_CLOCK   = B11111000;
 
-const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_TRIANGLE   = 36;
-const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_RAMP       = 37;
-const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_SQUARE     = 38;
-const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_TRIANGLE   = 36;
-const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_RAMP       = 37;
-const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_SQUARE     = 38;
-const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_TRIANGLE = 36;
-const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_RAMP     = 37;
-const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_SQUARE   = 38;
-const byte MIDI_CONTROL_CHANGE_SET_FILTER_MODE_LP                = 39;
-const byte MIDI_CONTROL_CHANGE_SET_FILTER_MODE_BP                = 40;
-const byte MIDI_CONTROL_CHANGE_SET_FILTER_MODE_HP                = 41;
-const byte MIDI_CONTROL_CHANGE_SET_VOICE_ONE_FILTER              = 42;
-const byte MIDI_CONTROL_CHANGE_SET_VOICE_TWO_FILTER              = 42;
-const byte MIDI_CONTROL_CHANGE_SET_VOICE_THREE_FILTER            = 42;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_TRIANGLE   = 12;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_RAMP       = 13;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_SQUARE     = 14;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_NOISE      = 15;
+const byte MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_ONE            = 16;
+const byte MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_ONE                = 17;
+const byte MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_ONE              = 18;
+const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_ONE         = 38;
+const byte MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_ONE              = 39;
+const byte MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_ONE               = 40;
+const byte MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_ONE             = 41;
+const byte MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_ONE             = 42;
 
-const byte MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY              = 12;
-const byte MIDI_CONTROL_CHANGE_SET_FILTER_RESONANCE              = 13;
-const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_FREQUENCY         = 14;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_TRIANGLE   = 20;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_RAMP       = 21;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_SQUARE     = 22;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_NOISE      = 23;
+const byte MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_TWO            = 24;
+const byte MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_TWO                = 25;
+const byte MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_TWO              = 26;
+const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_TWO         = 46;
+const byte MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_TWO              = 47;
+const byte MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_TWO               = 48;
+const byte MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_TWO             = 49;
+const byte MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_TWO             = 50;
 
-const byte MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_ONE              = 15;
-const byte MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_ONE               = 16;
-const byte MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_ONE             = 17;
-const byte MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_ONE             = 18;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_TRIANGLE = 28;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_RAMP     = 29;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_SQUARE   = 30;
+const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_NOISE    = 31;
+const byte MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_THREE          = 32;
+const byte MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_THREE              = 33;
+const byte MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_THREE            = 34;
+const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_THREE       = 54;
+const byte MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_THREE            = 55;
+const byte MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_THREE             = 56;
+const byte MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_THREE           = 57;
+const byte MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_THREE           = 58;
 
-const byte MIDI_CONTROL_CHANGE_SET_VOLUME                        = 19;
+const byte MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY              = 36;
+const byte MIDI_CONTROL_CHANGE_SET_FILTER_RESONANCE              = 37;
+const byte MIDI_CONTROL_CHANGE_SET_FILTER_MODE_LP                = 60;
+const byte MIDI_CONTROL_CHANGE_SET_FILTER_MODE_BP                = 61;
+const byte MIDI_CONTROL_CHANGE_SET_FILTER_MODE_HP                = 62;
+const byte MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_THREE_OFF        = 63;
+
+const byte MIDI_CONTROL_CHANGE_SET_VOLUME                        = 43;
 
 const byte MIDI_CHANNEL = 0; // "channel 1" (zero-indexed)
+
+const byte PROGRAM_MODE_POLYPHONIC = 0;
+const byte PROGRAM_MODE_MONOPHONIC = 1;
+
+byte current_program = PROGRAM_MODE_POLYPHONIC;
 
 const byte MAX_POLYPHONY = 3;
 byte polyphony = 3;
@@ -133,6 +159,19 @@ void sid_zero_all_registers() {
   }
 }
 
+void sid_zero_control_register(int voice) {
+  byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_CONTROL;
+  sid_transfer(address, 0);
+}
+
+void sid_zero_voice_registers(int voice) {
+  byte address = 0;
+  for (int i = 0; i < 7; i++) {
+    address = (voice * 7) + i;
+    sid_transfer(address, 0);
+  }
+}
+
 void sid_set_volume(byte level) {
   mode_register_state_byte &= B11110000;
   mode_register_state_byte |= (level & B00001111);
@@ -140,8 +179,42 @@ void sid_set_volume(byte level) {
 }
 
 void sid_set_waveform(int voice, byte waveform) {
-  voice_control_register_state_bytes[voice] &= B00000001;
+  voice_control_register_state_bytes[voice] &= B00001111;
   voice_control_register_state_bytes[voice] |= waveform;
+  byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_CONTROL;
+  byte data = voice_control_register_state_bytes[voice];
+  sid_transfer(address, data);
+}
+
+void sid_set_ring_mod(int voice, boolean on) {
+  if (on) {
+    // ring mod repurposes the output of the triangle oscillator
+    voice_control_register_state_bytes[voice] |= B00010100; // set triangle and ring mod bits, leave others as-is
+  } else {
+    if (((voice_control_register_state_bytes[voice] >> 7) & 0B00000001) == 1) {
+      sid_set_waveform(voice, SID_NOISE);
+    } else if (((voice_control_register_state_bytes[voice] >> 6) & 0B00000001) == 1) {
+      sid_set_waveform(voice, SID_SQUARE);
+    } else if (((voice_control_register_state_bytes[voice] >> 5) & 0B00000001) == 1) {
+      sid_set_waveform(voice, SID_RAMP);
+    } else {
+      sid_set_waveform(voice, SID_TRIANGLE);
+    }
+    voice_control_register_state_bytes[voice] &= B11111011; // zero ring mod
+  }
+
+  byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_CONTROL;
+  byte data = voice_control_register_state_bytes[voice];
+  sid_transfer(address, data);
+}
+
+void sid_set_sync(int voice, boolean on) {
+  if (on) {
+    voice_control_register_state_bytes[voice] |= B00000010;
+  } else {
+    voice_control_register_state_bytes[voice] &= B11111101;
+  }
+
   byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_CONTROL;
   byte data = voice_control_register_state_bytes[voice];
   sid_transfer(address, data);
@@ -268,6 +341,8 @@ void setup() {
   DDRF = B01110011; // initialize 5 PORTF pins as output (connected to A0-A4)
   DDRB = B11111111; // initialize 8 PORTB pins as output (connected to D0-D7)
 
+  current_program = PROGRAM_MODE_POLYPHONIC;
+  polyphony = 3;
   nullify_current_notes();
 
   start_clock();
@@ -287,6 +362,96 @@ void setup() {
 
   Serial1.begin(31250, SERIAL_8N1);
   Serial.begin(31250);
+}
+
+void handle_message_voice_attack_change(byte voice, byte envelope_value) {
+  sid_set_attack(voice, envelope_value);
+
+  if (polyphony == 3) {
+    for (int i = 0; i < 3; i++) {
+      sid_set_attack(i, envelope_value);
+    }
+  }
+}
+
+void handle_message_voice_decay_change(byte voice, byte envelope_value) {
+  sid_set_decay(voice, envelope_value);
+
+  if (polyphony == 3) {
+    for (int i = 0; i < 3; i++) {
+      sid_set_decay(i, envelope_value);
+    }
+  }
+}
+
+void handle_message_voice_sustain_change(byte voice, byte envelope_value) {
+  sid_set_sustain(voice, envelope_value);
+
+  if (polyphony == 3) {
+    for (int i = 0; i < 3; i++) {
+      sid_set_sustain(i, envelope_value);
+    }
+  }
+}
+
+void handle_message_voice_release_change(byte voice, byte envelope_value) {
+  sid_set_release(voice, envelope_value);
+
+  if (polyphony == 3) {
+    for (int i = 0; i < 3; i++) {
+      sid_set_release(i, envelope_value);
+    }
+  }
+}
+
+void handle_message_voice_waveform_change(byte voice, byte waveform) {
+  sid_set_waveform(voice, waveform);
+
+  if (polyphony == 3) {
+    for (int i = 0; i < 3; i++) {
+      sid_set_waveform(i, waveform);
+    }
+  }
+}
+
+void handle_message_voice_filter_change(byte voice, boolean on) {
+  sid_set_filter(voice, on);
+
+  if (polyphony == 3) {
+    for (int i = 0; i < 3; i++) {
+      sid_set_filter(i, on);
+    }
+  }
+}
+
+void handle_message_voice_pulse_width_change(byte voice, word frequency) {
+  sid_set_pulse_width(voice, frequency);
+
+  if (polyphony == 3) {
+    for (int i = 0; i < 3; i++) {
+      sid_set_pulse_width(i, frequency);
+    }
+  }
+}
+
+void handle_message_voice_ring_mod_change(byte voice, boolean on) {
+  sid_set_ring_mod(voice, on);
+
+  if (polyphony == 3) {
+    for (int i = 0; i < 3; i++) {
+      sid_set_ring_mod(voice, on);
+    }
+  }
+}
+
+void handle_message_voice_sync_change(byte voice, boolean on) {
+  sid_set_sync(voice, on);
+
+  if (polyphony == 3) {
+    for (int i = 0; i < 3; i++) {
+      sid_set_sync(voice, on);
+    }
+  }
 }
 
 void loop () {
@@ -313,21 +478,132 @@ void loop () {
 
           switch(controller_number) {
             case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_SQUARE:
-              sid_set_waveform(0, SID_SQUARE);
-              sid_set_waveform(1, SID_SQUARE);
-              sid_set_waveform(2, SID_SQUARE);
+              handle_message_voice_waveform_change(0, SID_SQUARE);
               break;
-
+            case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_SQUARE:
+              handle_message_voice_waveform_change(1, SID_SQUARE);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_SQUARE:
+              handle_message_voice_waveform_change(2, SID_SQUARE);
+              break;
             case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_TRIANGLE:
-              sid_set_waveform(0, SID_TRIANGLE);
-              sid_set_waveform(1, SID_TRIANGLE);
-              sid_set_waveform(2, SID_TRIANGLE);
+              handle_message_voice_waveform_change(0, SID_TRIANGLE);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_TRIANGLE:
+              handle_message_voice_waveform_change(1, SID_TRIANGLE);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_TRIANGLE:
+              handle_message_voice_waveform_change(2, SID_TRIANGLE);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_RAMP:
+              handle_message_voice_waveform_change(0, SID_RAMP);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_RAMP:
+              handle_message_voice_waveform_change(1, SID_RAMP);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_RAMP:
+              handle_message_voice_waveform_change(2, SID_RAMP);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_NOISE:
+              handle_message_voice_waveform_change(0, SID_NOISE);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_NOISE:
+              handle_message_voice_waveform_change(1, SID_NOISE);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_NOISE:
+              handle_message_voice_waveform_change(2, SID_NOISE);
               break;
 
-            case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_RAMP:
-              sid_set_waveform(0, SID_RAMP);
-              sid_set_waveform(1, SID_RAMP);
-              sid_set_waveform(2, SID_RAMP);
+            case MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_ONE:
+              handle_message_voice_ring_mod_change(0, data_byte_two == 127);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_TWO:
+              handle_message_voice_ring_mod_change(1, data_byte_two == 127);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_THREE:
+              handle_message_voice_ring_mod_change(2, data_byte_two == 127);
+              break;
+
+            case MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_ONE:
+              handle_message_voice_sync_change(0, data_byte_two == 127);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_TWO:
+              handle_message_voice_sync_change(1, data_byte_two == 127);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_THREE:
+              handle_message_voice_sync_change(2, data_byte_two == 127);
+              break;
+
+            case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_ONE:
+              temp_double = (data_byte_two / 127.0) * 4095.0;
+              handle_message_voice_pulse_width_change(0, (word)temp_double);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_TWO:
+              temp_double = (data_byte_two / 127.0) * 4095.0;
+              handle_message_voice_pulse_width_change(1, (word)temp_double);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_THREE:
+              temp_double = (data_byte_two / 127.0) * 4095.0;
+              handle_message_voice_pulse_width_change(2, (word)temp_double);
+              break;
+
+            case MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_ONE:
+              temp_double = (data_byte_two / 127.0) * 15.0;
+              handle_message_voice_attack_change(0, (byte)temp_double);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_TWO:
+              temp_double = (data_byte_two / 127.0) * 15.0;
+              handle_message_voice_attack_change(1, (byte)temp_double);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_THREE:
+              temp_double = (data_byte_two / 127.0) * 15.0;
+              handle_message_voice_attack_change(2, (byte)temp_double);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_ONE:
+              temp_double = (data_byte_two / 127.0) * 15.0;
+              handle_message_voice_decay_change(0, (byte)temp_double);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_TWO:
+              temp_double = (data_byte_two / 127.0) * 15.0;
+              handle_message_voice_decay_change(1, (byte)temp_double);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_THREE:
+              temp_double = (data_byte_two / 127.0) * 15.0;
+              handle_message_voice_decay_change(2, (byte)temp_double);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_ONE:
+              temp_double = (data_byte_two / 127.0) * 15.0;
+              handle_message_voice_sustain_change(0, (byte)temp_double);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_TWO:
+              temp_double = (data_byte_two / 127.0) * 15.0;
+              handle_message_voice_sustain_change(1, (byte)temp_double);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_THREE:
+              temp_double = (data_byte_two / 127.0) * 15.0;
+              handle_message_voice_sustain_change(2, (byte)temp_double);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_ONE:
+              temp_double = (data_byte_two / 127.0) * 15.0;
+              handle_message_voice_release_change(0, (byte)temp_double);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_TWO:
+              temp_double = (data_byte_two / 127.0) * 15.0;
+              handle_message_voice_release_change(1, (byte)temp_double);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_THREE:
+              temp_double = (data_byte_two / 127.0) * 15.0;
+              handle_message_voice_release_change(2, (byte)temp_double);
+              break;
+
+            case MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_ONE:
+              handle_message_voice_filter_change(0, data_byte_two == 127);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_TWO:
+              handle_message_voice_filter_change(1, data_byte_two == 127);
+              break;
+            case MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_THREE:
+              handle_message_voice_filter_change(2, data_byte_two == 127);
               break;
 
             case MIDI_CONTROL_CHANGE_SET_FILTER_MODE_LP:
@@ -341,60 +617,41 @@ void loop () {
               break;
 
             case MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY:
-              temp_double = (data_byte_two / 127.0) * 2047.0; // 11-bit
+              temp_double = (data_byte_two / 127.0) * 2047.0;
               sid_set_filter_frequency((word)temp_double);
               break;
             case MIDI_CONTROL_CHANGE_SET_FILTER_RESONANCE:
-              temp_double = (data_byte_two / 127.0) * 15.0;  // 4-bit
+              temp_double = (data_byte_two / 127.0) * 15.0;
               sid_set_filter_resonance((byte)temp_double);
-              break;
-            case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_FREQUENCY:
-              temp_double = (data_byte_two / 127.0) * 4095.0; // 12-bit
-              sid_set_pulse_width(0, (word)temp_double);
-              sid_set_pulse_width(1, (word)temp_double);
-              sid_set_pulse_width(2, (word)temp_double);
-              break;
-
-            case MIDI_CONTROL_CHANGE_SET_VOICE_ONE_FILTER:
-              sid_set_filter(0, data_byte_two == 127);
-              sid_set_filter(1, data_byte_two == 127);
-              sid_set_filter(2, data_byte_two == 127);
-              break;
-
-            case MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_ONE:
-              temp_double = (data_byte_two / 127.0) * 15.0;  // 4-bit
-              sid_set_attack(0, (byte)temp_double);
-              sid_set_attack(1, (byte)temp_double);
-              sid_set_attack(2, (byte)temp_double);
-              break;
-
-            case MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_ONE:
-              temp_double = (data_byte_two / 127.0) * 15.0;  // 4-bit
-              sid_set_decay(0, (byte)temp_double);
-              sid_set_decay(1, (byte)temp_double);
-              sid_set_decay(2, (byte)temp_double);
-              break;
-
-            case MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_ONE:
-              temp_double = (data_byte_two / 127.0) * 15.0;  // 4-bit
-              sid_set_sustain(0, (byte)temp_double);
-              sid_set_sustain(1, (byte)temp_double);
-              sid_set_sustain(2, (byte)temp_double);
-              break;
-
-            case MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_ONE:
-              temp_double = (data_byte_two / 127.0) * 15.0;  // 4-bit
-              sid_set_release(0, (byte)temp_double);
-              sid_set_release(1, (byte)temp_double);
-              sid_set_release(2, (byte)temp_double);
               break;
 
             case MIDI_CONTROL_CHANGE_SET_VOLUME:
-              temp_double = (data_byte_two / 127.0) * 15; // 4-bit
+              temp_double = (data_byte_two / 127.0) * 15;
               sid_set_volume((word)temp_double);
               break;
           }
           break;
+        case MIDI_PROGRAM_CHANGE :
+          while (Serial1.available() <= 0) { delayMicroseconds(1); }
+          data_byte_one = Serial1.read();
+          switch(data_byte_one) {
+            case PROGRAM_MODE_POLYPHONIC :
+              polyphony = 3;
+              for (int i = 1; i < MAX_POLYPHONY; i++) {
+                voice_control_register_state_bytes[i] = voice_control_register_state_bytes[0];
+                sid_transfer((i * 7) + REGISTER_BANK_OFFSET_VOICE_CONTROL, voice_control_register_state_bytes[i]);
+              }
+              break;
+            case PROGRAM_MODE_MONOPHONIC :
+              polyphony = 1;
+              for (int i = 1; i < MAX_POLYPHONY; i++) {
+                current_notes[i] = NULL;
+                sid_zero_voice_registers(i);
+              }
+              break;
+          }
+          break;
+
         case MIDI_PITCH_BEND :
           while (Serial1.available() <= 0) { delayMicroseconds(1); }
           data_byte_one = Serial1.read();
