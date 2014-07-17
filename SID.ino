@@ -299,15 +299,15 @@ void loop () {
               break;
 
             case MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY:
-              temp_double = (data_byte_two / 127.0) * 2048.0; // 11-bit
+              temp_double = (data_byte_two / 127.0) * 2047.0; // 11-bit
               sid_set_filter_frequency((word)temp_double);
               break;
             case MIDI_CONTROL_CHANGE_SET_FILTER_RESONANCE:
-              temp_double = (data_byte_two / 127.0) * 16.0;  // 4-bit
+              temp_double = (data_byte_two / 127.0) * 15.0;  // 4-bit
               sid_set_filter_resonance((byte)temp_double);
               break;
             case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_FREQUENCY:
-              temp_double = (data_byte_two / 127.0) * 4096.0; // 12-bit
+              temp_double = (data_byte_two / 127.0) * 4095.0; // 12-bit
               sid_set_pulse_width(0, (word)temp_double);
               sid_set_pulse_width(1, (word)temp_double);
               sid_set_pulse_width(2, (word)temp_double);
