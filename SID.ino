@@ -46,7 +46,19 @@ const byte SID_FL_MD_VL  = 24;
 byte voice_control_register_state_bytes[3] = {
   B00100000, // control register byte for Voice 1
   B00100000, // control register byte for Voice 2
-  B00100000, // control register byte for Voice 3
+  B00100000  // control register byte for Voice 3
+};
+
+byte voice_ad_register_state_bytes[3] = {
+  B00000000, // attack/decay register byte for Voice 1
+  B00000000, // attack/decay register byte for Voice 2
+  B00000000  // attack/decay register byte for Voice 3
+};
+
+byte voice_sr_register_state_bytes[3] = {
+  B00000000, // sustain/release register byte for Voice 1
+  B00000000, // sustain/release register byte for Voice 2
+  B00000000  // sustain/release register byte for Voice 3
 };
 
 byte filter_register_state_byte = B00000000;
@@ -78,6 +90,11 @@ const byte MIDI_CONTROL_CHANGE_SET_VOICE_THREE_FILTER            = 42;
 const byte MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY              = 12;
 const byte MIDI_CONTROL_CHANGE_SET_FILTER_RESONANCE              = 13;
 const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_FREQUENCY         = 14;
+
+const byte MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_ONE              = 15;
+const byte MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_ONE               = 16;
+const byte MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_ONE             = 17;
+const byte MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_ONE             = 18;
 
 const byte MIDI_CONTROL_CHANGE_SET_VOLUME                        = 19;
 
@@ -130,15 +147,35 @@ void sid_set_waveform(int voice, byte waveform) {
   sid_transfer(address, data);
 }
 
-void sid_set_ad_envelope(int voice, byte attack, byte decay) {
+void sid_set_attack(int voice, byte attack) {
   byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_ENVELOPE_AD;
-  byte data = (decay & B00001111) | (attack << 4);
+  byte data = voice_ad_register_state_bytes[voice] & B00001111;
+  data |= (attack << 4);
+  voice_ad_register_state_bytes[voice] = data;
   sid_transfer(address, data);
 }
 
-void sid_set_sr_envelope(int voice, byte sustain, byte release) {
+void sid_set_decay(int voice, byte decay) {
+  byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_ENVELOPE_AD;
+  byte data = voice_ad_register_state_bytes[voice] & B11110000;
+  data |= (decay & B00001111);
+  voice_ad_register_state_bytes[voice] = data;
+  sid_transfer(address, data);
+}
+
+void sid_set_sustain(int voice, byte sustain) {
   byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_ENVELOPE_SR;
-  byte data = (release & B00001111) | (sustain << 4);
+  byte data = voice_sr_register_state_bytes[voice] & B00001111;
+  data |= (sustain << 4);
+  voice_sr_register_state_bytes[voice] = data;
+  sid_transfer(address, data);
+}
+
+void sid_set_release(int voice, byte release) {
+  byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_ENVELOPE_SR;
+  byte data = voice_sr_register_state_bytes[voice] & B11110000;
+  data |= (release & B00001111);
+  voice_sr_register_state_bytes[voice] = data;
   sid_transfer(address, data);
 }
 
@@ -241,12 +278,15 @@ void setup() {
   sid_zero_all_registers();
   for (int i = 0; i < 3; i++) {
     sid_set_waveform(i, SID_TRIANGLE);
-    sid_set_ad_envelope(i, 0, 13);
-    sid_set_sr_envelope(i, 0, 0);
+    sid_set_attack(i, 0);
+    sid_set_decay(i, 14);
+    sid_set_sustain(i, 0);
+    sid_set_release(i, 0);
   }
   sid_set_volume(15);
 
   Serial1.begin(31250, SERIAL_8N1);
+  Serial.begin(31250);
 }
 
 void loop () {
@@ -319,6 +359,34 @@ void loop () {
               sid_set_filter(0, data_byte_two == 127);
               sid_set_filter(1, data_byte_two == 127);
               sid_set_filter(2, data_byte_two == 127);
+              break;
+
+            case MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_ONE:
+              temp_double = (data_byte_two / 127.0) * 15.0;  // 4-bit
+              sid_set_attack(0, (byte)temp_double);
+              sid_set_attack(1, (byte)temp_double);
+              sid_set_attack(2, (byte)temp_double);
+              break;
+
+            case MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_ONE:
+              temp_double = (data_byte_two / 127.0) * 15.0;  // 4-bit
+              sid_set_decay(0, (byte)temp_double);
+              sid_set_decay(1, (byte)temp_double);
+              sid_set_decay(2, (byte)temp_double);
+              break;
+
+            case MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_ONE:
+              temp_double = (data_byte_two / 127.0) * 15.0;  // 4-bit
+              sid_set_sustain(0, (byte)temp_double);
+              sid_set_sustain(1, (byte)temp_double);
+              sid_set_sustain(2, (byte)temp_double);
+              break;
+
+            case MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_ONE:
+              temp_double = (data_byte_two / 127.0) * 15.0;  // 4-bit
+              sid_set_release(0, (byte)temp_double);
+              sid_set_release(1, (byte)temp_double);
+              sid_set_release(2, (byte)temp_double);
               break;
 
             case MIDI_CONTROL_CHANGE_SET_VOLUME:
