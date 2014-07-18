@@ -131,7 +131,7 @@ byte current_program = PROGRAM_MODE_POLYPHONIC;
 
 const byte MAX_POLYPHONY = 3;
 byte polyphony = 3;
-byte current_notes[MAX_POLYPHONY];
+byte voice_notes[MAX_POLYPHONY];
 
 int midi_pitch_bend_max_semitones = 5;
 double current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
@@ -312,7 +312,7 @@ void sid_set_filter_mode(byte mode, boolean on) {
   if (on) {
     mode_register_state_byte |= mode;
   } else {
-    mode_register_state_byte |= ~mode;
+    mode_register_state_byte &= ~mode;
   }
 
   sid_transfer(SID_FL_MD_VL, mode_register_state_byte);
@@ -351,9 +351,9 @@ void start_clock() {
   TCCR3B |= (1 << CS30);
 }
 
-void nullify_current_notes() {
+void nullify_voice_notes() {
   for (int i = 0; i < MAX_POLYPHONY; i++) {
-    current_notes[i] = NULL;
+    voice_notes[i] = NULL;
   }
 }
 
@@ -363,7 +363,7 @@ void setup() {
 
   current_program = PROGRAM_MODE_POLYPHONIC;
   polyphony = 3;
-  nullify_current_notes();
+  nullify_voice_notes();
 
   start_clock();
 
@@ -705,7 +705,7 @@ void loop () {
             case PROGRAM_MODE_MONOPHONIC :
               polyphony = 1;
               for (int i = 0; i < MAX_POLYPHONY; i++) {
-                current_notes[i] = NULL;
+                voice_notes[i] = NULL;
                 sid_zero_voice_registers(i);
                 sid_set_attack(i, DEFAULT_ATTACK_VALUE);
                 sid_set_decay(i, DEFAULT_DECAY_VALUE);
@@ -728,10 +728,10 @@ void loop () {
           pitchbend = (pitchbend << 7);
           pitchbend |= data_byte_one;
           current_pitchbend_amount = ((pitchbend / 8192.0) - 1); // 8192 is the middle pitchbend value (half of 2**14)
-          for (int i = 0; i < polyphony; i++) {
-            if (current_notes[i] != NULL) {
+          for (int i = 0; i < MAX_POLYPHONY; i++) {
+            if (voice_notes[i] != NULL) {
               note_voice = i;
-              sid_set_voice_frequency(note_voice, (word)(MIDI_NOTES_TO_FREQUENCIES[current_notes[i]] * pow(2, (current_pitchbend_amount * midi_pitch_bend_max_semitones) / 12.0)));
+              sid_set_voice_frequency(note_voice, (word)(MIDI_NOTES_TO_FREQUENCIES[voice_notes[i]] * pow(2, (current_pitchbend_amount * midi_pitch_bend_max_semitones) / 12.0)));
             }
           }
           break;
@@ -747,19 +747,20 @@ void loop () {
                 sid_set_gate(i, false);
                 sid_set_voice_frequency(i, (word)temp_double);
                 sid_set_gate(i, true);
+                voice_notes[i] = data_byte_one;
               }
             } else {  // we're poly, so every voice has to have its own frequency
               for (int i = 0; i < polyphony; i++) {
-                if (current_notes[i] == NULL) {
-                  current_notes[i] = data_byte_one;
+                if (voice_notes[i] == NULL) {
+                  voice_notes[i] = data_byte_one;
                   note_voice = i;
                   break;
                 }
                 else {
                   if (i == (polyphony - 1)) {
-                    current_notes[0] = current_notes[1];
-                    current_notes[1] = current_notes[2];
-                    current_notes[2] = data_byte_one;
+                    voice_notes[0] = voice_notes[1];
+                    voice_notes[1] = voice_notes[2];
+                    voice_notes[2] = data_byte_one;
                     note_voice = i;
                     break;
                   }
@@ -780,8 +781,8 @@ void loop () {
           data_byte_two = Serial1.read();
           // same for mono and poly
           for (int i = 0; i < MAX_POLYPHONY; i++) {
-            if (current_notes[i] == data_byte_one) {
-              current_notes[i] = NULL;
+            if (voice_notes[i] == data_byte_one) {
+              voice_notes[i] = NULL;
               note_voice = i;
               sid_set_gate(note_voice, false);
             }
