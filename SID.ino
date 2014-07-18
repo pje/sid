@@ -106,6 +106,8 @@ byte voice_notes[MAX_POLYPHONY];
 
 int midi_pitch_bend_max_semitones = 5;
 double current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
+double voice_pitch_multiplier_factors[MAX_POLYPHONY] = { 0.0, 0.0, 0.0 }; // [-1.0 .. 1.0]
+int voice_pitch_multiplier_max_factor = 5;
 
 const int DEFAULT_PULSE_WIDTH_VALUE = 2048; // (2**12 - 1) / 2
 const int DEFAULT_WAVEFORM_VALUE = SID_TRIANGLE;
@@ -435,8 +437,11 @@ void handle_message_voice_sync_change(byte voice, boolean on) {
   }
 }
 
-void handle_message_voice_detune_change(byte voice, byte amount) {
-
+void handle_message_voice_detune_change(byte voice, double detune_factor) {
+  voice_pitch_multiplier_factors[voice] = detune_factor;
+  double semitone_change = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_pitch_multiplier_factors[voice] * voice_pitch_multiplier_max_factor);
+  double frequency = MIDI_NOTES_TO_FREQUENCIES[voice_notes[voice]] * pow(2, semitone_change / 12.0);
+  sid_set_voice_frequency(voice, (word)frequency);
 }
 
 void loop () {
@@ -591,13 +596,16 @@ void loop () {
               break;
 
             case MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_ONE:
-              handle_message_voice_detune_change(0, controller_value);
+              temp_double = ((controller_value / 64.0) - 1);
+              handle_message_voice_detune_change(0, temp_double);
               break;
             case MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_TWO:
-              handle_message_voice_detune_change(1, controller_value);
+              temp_double = ((controller_value / 64.0) - 1);
+              handle_message_voice_detune_change(1, temp_double);
               break;
             case MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_THREE:
-              handle_message_voice_detune_change(2, controller_value);
+              temp_double = ((controller_value / 64.0) - 1);
+              handle_message_voice_detune_change(2, temp_double);
               break;
 
             case MIDI_CONTROL_CHANGE_SET_FILTER_MODE_LP:
@@ -676,7 +684,9 @@ void loop () {
           for (int i = 0; i < MAX_POLYPHONY; i++) {
             if (voice_notes[i] != NULL) {
               note_voice = i;
-              sid_set_voice_frequency(note_voice, (word)(MIDI_NOTES_TO_FREQUENCIES[voice_notes[i]] * pow(2, (current_pitchbend_amount * midi_pitch_bend_max_semitones) / 12.0)));
+              temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_pitch_multiplier_factors[note_voice] * voice_pitch_multiplier_max_factor);
+              temp_double = MIDI_NOTES_TO_FREQUENCIES[voice_notes[i]] * pow(2, temp_double / 12.0);
+              sid_set_voice_frequency(note_voice, (word)temp_double);
             }
           }
           break;
@@ -688,7 +698,8 @@ void loop () {
           if (data_byte_one < 96) { // SID can't handle freqs > B7
             if (polyphony == 1) { // we're mono. for now all voices will have the same frequency.
               for (int i = 0; i < MAX_POLYPHONY; i++ ) {
-                temp_double = (MIDI_NOTES_TO_FREQUENCIES[data_byte_one] * pow(2, (current_pitchbend_amount * midi_pitch_bend_max_semitones) / 12.0));
+                temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_pitch_multiplier_factors[i] * voice_pitch_multiplier_max_factor);
+                temp_double = MIDI_NOTES_TO_FREQUENCIES[data_byte_one] * pow(2, temp_double / 12.0);
                 sid_set_gate(i, false);
                 sid_set_voice_frequency(i, (word)temp_double);
                 sid_set_gate(i, true);
@@ -711,7 +722,8 @@ void loop () {
                   }
                 }
               }
-              temp_double = (MIDI_NOTES_TO_FREQUENCIES[data_byte_one] * pow(2, (current_pitchbend_amount * midi_pitch_bend_max_semitones) / 12.0));
+              temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_pitch_multiplier_factors[note_voice] * voice_pitch_multiplier_max_factor);
+              temp_double = MIDI_NOTES_TO_FREQUENCIES[data_byte_one] * pow(2, temp_double / 12.0);
               sid_set_gate(note_voice, false);
               sid_set_voice_frequency(note_voice, (word)temp_double);
               sid_set_gate(note_voice, true);
