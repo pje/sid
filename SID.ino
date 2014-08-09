@@ -523,6 +523,8 @@ void handle_message_bank_select(byte bank_number) {
 
 void handle_state_dump_request() {
   // for testing purposes, we'll print the state of our sid representation
+  // TODO: this should also print the state of our 'virtual' controls
+  // voice detune, LFOs (potentially)
   for (int i = 0; i < 25; i++) {
     Serial.print(sid_state_bytes[i], BIN);
     Serial.println("");
