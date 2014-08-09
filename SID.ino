@@ -602,22 +602,28 @@ void loop () {
               break;
 
             case MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_ONE:
+              // replaces the triangle output of voice 1 with a ring modulated combination of voice 1 by voice 3
               handle_message_voice_ring_mod_change(0, controller_value == 127);
               break;
             case MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_TWO:
+              // replaces the triangle output of voice 2 with a ring modulated combination of voice 2 by voice 1
               handle_message_voice_ring_mod_change(1, controller_value == 127);
               break;
             case MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_THREE:
+              // replaces the triangle output of voice 3 with a ring modulated combination of voice 3 by voice 2
               handle_message_voice_ring_mod_change(2, controller_value == 127);
               break;
 
             case MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_ONE:
+              // hard-syncs frequency of voice 1 to voice 3
               handle_message_voice_sync_change(0, controller_value == 127);
               break;
             case MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_TWO:
+              // hard-syncs frequency of voice 2 to voice 1
               handle_message_voice_sync_change(1, controller_value == 127);
               break;
             case MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_THREE:
+              // hard-syncs frequency of voice 3 to voice 2
               handle_message_voice_sync_change(2, controller_value == 127);
               break;
 
@@ -749,7 +755,7 @@ void loop () {
             case 127:
               if (controller_value == 127) {
                 handle_state_dump_request();
-              }            
+              }
               break;
           }
           break;
