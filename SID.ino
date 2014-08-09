@@ -509,22 +509,9 @@ void handle_message_program_change(byte program_number) {
   switch (program_number) {
     case MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_POLYPHONIC:
       polyphony = 3;
-      // for (int i = 1; i < MAX_POLYPHONY; i++) {
-      //   sid_transfer((i * 7) + REGISTER_BANK_OFFSET_VOICE_CONTROL, sid_state_bytes[(i * 7) + REGISTER_BANK_OFFSET_VOICE_CONTROL]);
-      // }
       break;
     case MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC:
       polyphony = 1;
-      // for (int i = 0; i < MAX_POLYPHONY; i++) {
-      //   voice_notes[i] = NULL;
-      //   sid_zero_voice_registers(i);
-      //   sid_set_attack(i, DEFAULT_ATTACK_VALUE);
-      //   sid_set_decay(i, DEFAULT_DECAY_VALUE);
-      //   sid_set_sustain(i, DEFAULT_SUSTAIN_VALUE);
-      //   sid_set_release(i, DEFAULT_RELEASE_VALUE);
-      //   sid_set_pulse_width(i, DEFAULT_PULSE_WIDTH_VALUE);
-      // }
-      // sid_set_waveform(0, DEFAULT_WAVEFORM_VALUE); // and why not turn on voice one by default
       break;
   }
 }
