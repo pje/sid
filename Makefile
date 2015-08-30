@@ -7,4 +7,9 @@ MONITOR_PORT?=/dev/tty.usbmodem*
 
 include Arduino-Makefile/Arduino.mk
 
+format:
+	astyle --style=google --indent=spaces=2 SID.ino
+
 .DEFAULT: upload
+
+.PHONY: format upload
