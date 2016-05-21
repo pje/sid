@@ -1,15 +1,15 @@
-ARDUINO_DIR?=$(HOME)/Applications/Arduino.app/Contents/Resources/Java
-ARDMK_DIR=$(CURDIR)/Arduino-Makefile
-ARDMK_PATH=$(CURDIR)/Arduino-Makefile/bin
-ARDUINO_LIBS=
-BOARD_TAG?=micro
+ARDUINO_BIN?=$(HOME)/Applications/Arduino.app/Contents/MacOS/Arduino
 MONITOR_PORT?=/dev/tty.usbmodem*
 
-include Arduino-Makefile/Arduino.mk
+build:
+
+upload:
+	$(ARDUINO_BIN) --upload --board arduino:avr:micro --verbose SID.ino
+
+verify:
+	$(ARDUINO_BIN) --verify SID.ino
 
 format:
 	astyle --style=google --indent=spaces=2 SID.ino
 
-.DEFAULT: upload
-
-.PHONY: format upload
+.PHONY: format upload verify
