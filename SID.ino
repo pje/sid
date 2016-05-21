@@ -1,6 +1,9 @@
 #include <math.h>
 
-const boolean DEBUG = true;
+const boolean DEBUG = false;
+// this will turn on a lot of debugging output on `Serial`.
+// NB that calls to `Serial.print` are slow enough that turning this one will
+// absolutely change the behavior of the synth in (possibly subtle) ways
 
 const int ARDUINO_SID_CHIP_SELECT_PIN = 13;
 const int ARDUINO_SID_MASTER_CLOCK_PIN = 5;
@@ -91,9 +94,9 @@ const byte MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_THREE           = 58;
 
 const byte MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY              = 36;
 const byte MIDI_CONTROL_CHANGE_SET_FILTER_RESONANCE              = 37;
-const byte MIDI_CONTROL_CHANGE_SET_FILTER_MODE_LP                = 60;
-const byte MIDI_CONTROL_CHANGE_SET_FILTER_MODE_BP                = 61;
-const byte MIDI_CONTROL_CHANGE_SET_FILTER_MODE_HP                = 62;
+const byte MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_LP             = 60;
+const byte MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_BP             = 61;
+const byte MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_HP             = 62;
 const byte MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_THREE_OFF        = 63;
 const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_ONE              = 64;
 const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_TWO              = 72;
@@ -131,13 +134,13 @@ void print_padded_binary_byte(byte b) {
 }
 
 void sid_transfer(byte address, byte data) {
-  if (DEBUG) {
+  #ifdef DEBUG
     Serial.print("        sid_transfer(");
     print_padded_binary_byte(address);
     Serial.print(", ");
     print_padded_binary_byte(data);
     Serial.println(")");
-  }
+  #endif
   address &= B00011111;
 
   // PORTF is a weird 6-bit register (8 bits, but bits 2 and 3 don't exist)
@@ -294,13 +297,13 @@ void sid_set_filter(byte voice, boolean on) {
   sid_transfer(address, data);
 }
 
-void sid_set_filter_mode(byte mode, boolean on) {
+void sid_toggle_filter_mode(byte mode, boolean on) {
   byte address = REGISTER_ADDRESS_FILTER_MODE_VOLUME;
   byte data;
   if (on) {
-    data = (sid_state_bytes[address] & B01111111) | mode;
+    data = sid_state_bytes[address] | mode;
   } else {
-    data = (sid_state_bytes[address] & B01111111) & ~mode;
+    data = sid_state_bytes[address] & ~mode;
   }
   sid_transfer(address, data);
 }
@@ -357,9 +360,9 @@ void sid_reset_filter_state() {
   for (int i = 0; i < 3; i ++) {
     sid_set_filter(i, false);
   }
-  sid_set_filter_mode(SID_FILT_HP, false);
-  sid_set_filter_mode(SID_FILT_BP, false);
-  sid_set_filter_mode(SID_FILT_LP, false);
+  sid_toggle_filter_mode(SID_FILT_HP, false);
+  sid_toggle_filter_mode(SID_FILT_BP, false);
+  sid_toggle_filter_mode(SID_FILT_LP, false);
 }
 
 void setup() {
@@ -377,7 +380,7 @@ void setup() {
   Serial1.begin(31250, SERIAL_8N1);
   Serial.begin(31250);
 
-  delay(3000); // yes, a full second
+  delay(3000); // yes, a full 3 seconds
 
   sid_zero_all_registers();
 
@@ -390,6 +393,8 @@ void setup() {
     sid_set_release(i, DEFAULT_RELEASE_VALUE);
   }
 
+  // comment to turn off "true" mono (i.e. all voices on, gives a kinda unison-y feel)
+  //
   if (polyphony == 1) {
     // this turns off all waveform bits on all voices but voice 1.
     // if we are mono we want to default to only making noise from the first voice.
@@ -406,12 +411,13 @@ void setup() {
 }
 
 void handle_message_voice_attack_change(byte voice, byte envelope_value) {
-  Serial.print("handle_message_voice_attack_change: ");
-  Serial.print(voice);
-  Serial.print(", ");
-  Serial.print(envelope_value);
-  Serial.println("");
-
+  #ifdef DEBUG
+    Serial.print("handle_message_voice_attack_change: ");
+    Serial.print(voice);
+    Serial.print(", ");
+    Serial.print(envelope_value);
+    Serial.println("");
+  #endif
   sid_set_attack(voice, envelope_value);
 
   if (polyphony == 3) {
@@ -422,11 +428,13 @@ void handle_message_voice_attack_change(byte voice, byte envelope_value) {
 }
 
 void handle_message_voice_decay_change(byte voice, byte envelope_value) {
-  Serial.print("handle_message_voice_decay_change: ");
-  Serial.print(voice);
-  Serial.print(", ");
-  Serial.print(envelope_value);
-  Serial.println("");
+  #ifdef DEBUG
+    Serial.print("handle_message_voice_decay_change: ");
+    Serial.print(voice);
+    Serial.print(", ");
+    Serial.print(envelope_value);
+    Serial.println("");
+  #endif
   sid_set_decay(voice, envelope_value);
 
   if (polyphony == 3) {
@@ -437,11 +445,13 @@ void handle_message_voice_decay_change(byte voice, byte envelope_value) {
 }
 
 void handle_message_voice_sustain_change(byte voice, byte envelope_value) {
-  Serial.print("handle_message_voice_sustain_change: ");
-  Serial.print(voice);
-  Serial.print(", ");
-  Serial.print(envelope_value);
-  Serial.println("");
+  #ifdef DEBUG
+    Serial.print("handle_message_voice_sustain_change: ");
+    Serial.print(voice);
+    Serial.print(", ");
+    Serial.print(envelope_value);
+    Serial.println("");
+  #endif
   sid_set_sustain(voice, envelope_value);
 
   if (polyphony == 3) {
@@ -452,11 +462,13 @@ void handle_message_voice_sustain_change(byte voice, byte envelope_value) {
 }
 
 void handle_message_voice_release_change(byte voice, byte envelope_value) {
-  Serial.print("handle_message_voice_release_change: ");
-  Serial.print(voice);
-  Serial.print(", ");
-  Serial.print(envelope_value);
-  Serial.println("");
+  #ifdef DEBUG
+    Serial.print("handle_message_voice_release_change: ");
+    Serial.print(voice);
+    Serial.print(", ");
+    Serial.print(envelope_value);
+    Serial.println("");
+  #endif
   sid_set_release(voice, envelope_value);
 
   if (polyphony == 3) {
@@ -467,13 +479,15 @@ void handle_message_voice_release_change(byte voice, byte envelope_value) {
 }
 
 void handle_message_voice_waveform_change(byte voice, byte waveform, boolean on) {
-  Serial.print("handle_message_voice_waveform_change: ");
-  Serial.print(voice);
-  Serial.print(", ");
-  Serial.print(waveform);
-  Serial.print(", ");
-  Serial.print(on);
-  Serial.println("");
+  #ifdef DEBUG
+    Serial.print("handle_message_voice_waveform_change: ");
+    Serial.print(voice);
+    Serial.print(", ");
+    Serial.print(waveform);
+    Serial.print(", ");
+    Serial.print(on);
+    Serial.println("");
+  #endif
 
   sid_toggle_waveform(voice, waveform, on);
 
@@ -485,11 +499,13 @@ void handle_message_voice_waveform_change(byte voice, byte waveform, boolean on)
 }
 
 void handle_message_voice_filter_change(byte voice, boolean on) {
-  Serial.print("handle_message_voice_filter_change: ");
-  Serial.print(voice);
-  Serial.print(", ");
-  Serial.print(on);
-  Serial.println("");
+  #ifdef DEBUG
+    Serial.print("handle_message_voice_filter_change: ");
+    Serial.print(voice);
+    Serial.print(", ");
+    Serial.print(on);
+    Serial.println("");
+  #endif
   sid_set_filter(voice, on);
 
   if (polyphony == 3) {
@@ -504,14 +520,15 @@ word clamp(word lo, word x, word hi) {
 }
 
 void handle_message_voice_pulse_width_change(byte voice, word frequency) {
-  Serial.print("handle_message_voice_pulse_width_change: ");
-  Serial.print(voice);
-  Serial.print(", ");
-  Serial.print(frequency);
-  Serial.println("");
+  #ifdef DEBUG
+    Serial.print("handle_message_voice_pulse_width_change: ");
+    Serial.print(voice);
+    Serial.print(", ");
+    Serial.print(frequency);
+    Serial.println("");
+  #endif
 
   // clamping because pulse width values outside of (16..4079) sound too much like a bug
-
   sid_set_pulse_width(voice, clamp(16, frequency, 4079));
 
   if (polyphony == 3) {
@@ -522,11 +539,14 @@ void handle_message_voice_pulse_width_change(byte voice, word frequency) {
 }
 
 void handle_message_voice_ring_mod_change(byte voice, boolean on) {
-  Serial.print("handle_message_voice_ring_mod_change: ");
-  Serial.print(voice);
-  Serial.print(", ");
-  Serial.print(on);
-  Serial.println("");
+  #ifdef DEBUG
+    Serial.print("handle_message_voice_ring_mod_change: ");
+    Serial.print(voice);
+    Serial.print(", ");
+    Serial.print(on);
+    Serial.println("");
+  #endif
+
   sid_set_ring_mod(voice, on);
 
   if (polyphony == 3) {
@@ -537,11 +557,14 @@ void handle_message_voice_ring_mod_change(byte voice, boolean on) {
 }
 
 void handle_message_voice_sync_change(byte voice, boolean on) {
-  Serial.print("handle_message_voice_sync_change: ");
-  Serial.print(voice);
-  Serial.print(", ");
-  Serial.print(on);
-  Serial.println("");
+  #ifdef DEBUG
+    Serial.print("handle_message_voice_sync_change: ");
+    Serial.print(voice);
+    Serial.print(", ");
+    Serial.print(on);
+    Serial.println("");
+  #endif
+
   sid_set_sync(voice, on);
 
   if (polyphony == 3) {
@@ -552,11 +575,14 @@ void handle_message_voice_sync_change(byte voice, boolean on) {
 }
 
 void handle_message_voice_detune_change(byte voice, double detune_factor) {
-  Serial.print("handle_message_voice_detune_change: ");
-  Serial.print(voice);
-  Serial.print(", ");
-  Serial.print(detune_factor);
-  Serial.println("");
+  #ifdef DEBUG
+    Serial.print("handle_message_voice_detune_change: ");
+    Serial.print(voice);
+    Serial.print(", ");
+    Serial.print(detune_factor);
+    Serial.println("");
+  #endif
+
   voice_pitch_multiplier_factors[voice] = detune_factor;
   double semitone_change = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_pitch_multiplier_factors[voice] * voice_pitch_multiplier_max_factor);
   double frequency = MIDI_NOTES_TO_FREQUENCIES[voice_notes[voice]] * pow(2, semitone_change / 12.0);
@@ -564,11 +590,14 @@ void handle_message_voice_detune_change(byte voice, double detune_factor) {
 }
 
 void handle_message_note_on(byte note_number, byte velocity) {
-  Serial.print("handle_message_note_on: ");
-  Serial.print(note_number);
-  Serial.print(", ");
-  Serial.print(velocity);
-  Serial.println("");
+  #ifdef DEBUG
+    Serial.print("handle_message_note_on: ");
+    Serial.print(note_number);
+    Serial.print(", ");
+    Serial.print(velocity);
+    Serial.println("");
+  #endif
+
   double temp_double = 0.0;
   int note_voice = 0;
   if (polyphony == 1) { // we're mono. for now all voices will have the same frequency.
@@ -607,11 +636,14 @@ void handle_message_note_on(byte note_number, byte velocity) {
 }
 
 void handle_message_note_off(byte note_number, byte velocity) {
-  Serial.print("handle_message_note_off: ");
-  Serial.print(note_number);
-  Serial.print(", ");
-  Serial.print(velocity);
-  Serial.println("");
+  #ifdef DEBUG
+    Serial.print("handle_message_note_off: ");
+    Serial.print(note_number);
+    Serial.print(", ");
+    Serial.print(velocity);
+    Serial.println("");
+  #endif
+
   for (int i = 0; i < MAX_POLYPHONY; i++) {
     if (voice_notes[i] == note_number) {
       voice_notes[i] = NULL;
@@ -621,9 +653,12 @@ void handle_message_note_off(byte note_number, byte velocity) {
 }
 
 void handle_message_pitchbend_change(word pitchbend) {
-  Serial.print("handle_message_pitchbend_change: ");
-  Serial.print(pitchbend);
-  Serial.println("");
+  #ifdef DEBUG
+    Serial.print("handle_message_pitchbend_change: ");
+    Serial.print(pitchbend);
+    Serial.println("");
+  #endif
+
   double temp_double = 0.0;
   current_pitchbend_amount = ((pitchbend / 8192.0) - 1); // 8192 is the "neutral" pitchbend value (half of 2**14)
   for (int i = 0; i < MAX_POLYPHONY; i++) {
@@ -636,9 +671,12 @@ void handle_message_pitchbend_change(word pitchbend) {
 }
 
 void handle_message_program_change(byte program_number) {
-  Serial.print("handle_message_program_change: ");
-  Serial.print(program_number);
-  Serial.println("");
+  #ifdef DEBUG
+    Serial.print("handle_message_program_change: ");
+    Serial.print(program_number);
+    Serial.println("");
+  #endif
+
   switch (program_number) {
   case MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_POLYPHONIC:
     polyphony = 3;
@@ -960,25 +998,25 @@ void loop () {
           handle_message_voice_detune_change(2, temp_double);
           break;
 
-        case MIDI_CONTROL_CHANGE_SET_FILTER_MODE_LP:
+        case MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_LP:
           if (controller_value == 127) {
-            sid_set_filter_mode(SID_FILT_LP, true);
+            sid_toggle_filter_mode(SID_FILT_LP, true);
           } else if (controller_value == 0) {
-            sid_set_filter_mode(SID_FILT_LP, false);
+            sid_toggle_filter_mode(SID_FILT_LP, false);
           }
           break;
-        case MIDI_CONTROL_CHANGE_SET_FILTER_MODE_BP:
+        case MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_BP:
           if (controller_value == 127) {
-            sid_set_filter_mode(SID_FILT_BP, true);
+            sid_toggle_filter_mode(SID_FILT_BP, true);
           } else if (controller_value == 0) {
-            sid_set_filter_mode(SID_FILT_BP, false);
+            sid_toggle_filter_mode(SID_FILT_BP, false);
           }
           break;
-        case MIDI_CONTROL_CHANGE_SET_FILTER_MODE_HP:
+        case MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_HP:
           if (controller_value == 127) {
-            sid_set_filter_mode(SID_FILT_HP, true);
+            sid_toggle_filter_mode(SID_FILT_HP, true);
           } else if (controller_value == 0) {
-            sid_set_filter_mode(SID_FILT_HP, false);
+            sid_toggle_filter_mode(SID_FILT_HP, false);
           }
           break;
 

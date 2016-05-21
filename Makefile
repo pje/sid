@@ -11,7 +11,7 @@ format:
 	astyle --style=google --indent=spaces=2 SID.ino
 
 # monitor serial port with:
-#     screen /dev/tty.* 9600
+#     screen /dev/ttyXXXX 9600
 # (ctrl-a, k to kill)
 
 .PHONY: format upload verify
