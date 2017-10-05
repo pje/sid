@@ -1,4 +1,4 @@
-ARDUINO_BIN?=$(HOME)/Applications/Arduino.app/Contents/MacOS/Arduino
+ARDUINO_BIN?=/Applications/Arduino.app/Contents/MacOS/Arduino
 MONITOR_PORT?=/dev/tty.usbmodem*
 
 build:
