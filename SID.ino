@@ -37,6 +37,7 @@ const byte SID_FILT_EXT    = B00001000;
 
 // since we have to set all the bits in a register byte at once,
 // we must maintain a copy of the register's state so we don't clobber bits
+// (SID actually has 28 registers but we don't use the last 4. hence 25)
 byte sid_state_bytes[25] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
 const byte MIDI_NOTE_ON        = B1001;
@@ -136,7 +137,7 @@ void sid_transfer(byte address, byte data) {
   PORTB = data;
   digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, LOW);
   sid_state_bytes[address] = data;
-  delayMicroseconds(2);
+  delayMicroseconds(2); // TODO: useless since each call to digitalWrite takes ~20 µs anyway
   digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
 }
 
@@ -294,6 +295,9 @@ void sid_set_gate(int voice, boolean state) {
   sid_transfer(address, data);
 }
 
+// SID requires a 1MHz clock signal, so this sets `ARDUINO_SID_MASTER_CLOCK_PIN`
+// to be our 1MHz oscillator by configuring Timer 3 of the ATmega32U4.
+// http://medesign.seas.upenn.edu/index.php/Guides/MaEvArM-timer3
 void start_clock() {
   pinMode(ARDUINO_SID_MASTER_CLOCK_PIN, OUTPUT);
   TCCR3A = 0;
@@ -314,6 +318,9 @@ void nullify_voice_notes() {
 void setup() {
   DDRF = B01110011; // initialize 5 PORTF pins as output (connected to A0-A4)
   DDRB = B11111111; // initialize 8 PORTB pins as output (connected to D0-D7)
+  // technically SID allows us to read from its last 4 registers, but we don't
+  // need to, so we just always keep SID's R/W pin low (signifying "write"),
+  // which seems to work ok
 
   polyphony = 3;
   nullify_voice_notes();
