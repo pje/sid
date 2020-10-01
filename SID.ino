@@ -97,18 +97,28 @@ const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_TWO              = 72;
 const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_THREE            = 80;
 const byte MIDI_CONTROL_CHANGE_SET_VOLUME                        = 43;
 
+const byte MIDI_CONTROL_CHANGE_SET_GLIDE_TIME                    = 81; // glide is disabled by CC value 0 (and by default)
+
 const byte MIDI_CHANNEL = 0; // "channel 1" (zero-indexed)
 const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_POLYPHONIC        = 0;
 const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC        = 1;
 
 const byte MAX_POLYPHONY = 3;
 byte polyphony = 3;
-byte voice_notes[MAX_POLYPHONY];
+byte voice_notes[MAX_POLYPHONY]; // array of MIDI note numbers [0 ... 127]
 
 int midi_pitch_bend_max_semitones = 5;
 double current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
 double voice_pitch_multiplier_factors[MAX_POLYPHONY] = { 0.0, 0.0, 0.0 }; // [-1.0 .. 1.0]
 int voice_pitch_multiplier_max_factor = 5;
+
+const double DEFAULT_GLIDE_TIME_MILLIS = 50.0;
+const double MAX_GLIDE_TIME_MILLIS = 10000.0;
+bool glide_enabled = false;
+double glide_time = 0.0;
+unsigned long glide_start_time_micros = 0.0;
+unsigned long last_glide_update_micros;
+unsigned long glide_update_resolution_micros = 10; // absent a new note being played, we will update voice oscillator frequencies at most every this_many microseconds to compensate for glide.
 
 const int DEFAULT_PULSE_WIDTH_VALUE = 2048; // (2**12 - 1) / 2
 const int DEFAULT_WAVEFORM_VALUE = SID_TRIANGLE;
@@ -447,10 +457,48 @@ void handle_message_voice_detune_change(byte voice, double detune_factor) {
   sid_set_voice_frequency(voice, (word)frequency);
 }
 
+void handle_message_glide_time_change(double glide_time_millis) {
+  if (fabs(glide_time_millis) < 0.0001) { // zero would mean "glide off" (fabs/epsilon stuff is to handle floating-point equality to 0)
+    glide_enabled = false;
+  } else {
+    glide_enabled = true;
+    glide_time = glide_time_millis;
+  }
+}
+
+// The user has started to play MIDI note 64. This is commonly 329 Hz, or E4.
+// HOWEVER, we must ALSO take into account pitch bend, voice detune, and glide.
+double determine_modulated_frequency(byte note_number) {
+  unsigned long time_micros = micros();
+
+  double glide_duration_so_far_millis = (time_micros - glide_start_time_micros) / 1000.0;
+  double glide_percentage_progess = glide_duration_so_far_millis / glide_time;
+  if (glide_percentage_progess > 100.0) {
+    glide_percentage_progess = 100.0;
+  }
+
+  double freq_after_pb_and_detune = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_pitch_multiplier_factors[i] * voice_pitch_multiplier_max_factor);
+  freq_after_pb_and_detune = MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, temp_double / 12.0);
+
+  freq_after_pb_and_detune
+
+  return after_glide;
+}
+
 void handle_message_note_on(byte note_number, byte velocity) {
   double temp_double = 0.0;
   int note_voice = 0;
   if (polyphony == 1) { // we're mono. for now all voices will have the same frequency.
+
+    if (glide_enabled) { // sorry
+      if (midi_note_glide_start == NULL) { // we're not already gliding, so start a fresh glide (i.e. just play the note)
+        midi_note_glide_start = note_number;
+        midi_note_glide_destination = NULL;
+      } else {  // we ARE gliding *from* a note already, so just update our destination
+        midi_note_glide_destination = note_number;
+      }
+    }
+
     for (int i = 0; i < MAX_POLYPHONY; i++ ) {
       temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_pitch_multiplier_factors[i] * voice_pitch_multiplier_max_factor);
       temp_double = MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, temp_double / 12.0);
@@ -531,6 +579,44 @@ void handle_state_dump_request() {
 }
 
 void loop () {
+  long loop_start_time_micros = micros();
+
+  // because of glide, we may have to update oscillator frequencies even when
+  // we're not responding to a new MIDI note-on message. So we have to do this
+  // branch every loop, but we throttle by checking `last_glide_update_micros`.
+  if (glide_enabled &&
+      polyphony == 1 &&
+      voice_notes[0] != NULL &&
+      glide_start_time != NULL &&
+      (loop_start_time_micros > (last_glide_update_micros + glide_update_resolution_micros))) {
+
+    double glide_duration_so_far_millis = (loop_start_time_micros - glide_start_time_micros) / 1000.0;
+    double glide_percentage_progess = glide_duration_so_far_millis / glide_time;
+    double glide_frequency_distance = 0.0
+    double glide_herz_to_add = 0.0;
+    double freq_after_pb_and_detune = 0.0;
+
+    if (glide_percentage_progess < 100.0) {
+
+      for (int i = 0; i < MAX_POLYPHONY; i++) {
+        if (voice_notes[i] != NULL) {
+          freq_after_pb_and_detune = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_pitch_multiplier_factors[i] * voice_pitch_multiplier_max_factor);
+          freq_after_pb_and_detune = MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, temp_double / 12.0);
+
+          glide_frequency_distance = MIDI_NOTES_TO_FREQUENCIES[midi_note_glide_destination] - MIDI_NOTES_TO_FREQUENCIES[midi_note_glide_start];
+          glide_herz_to_add = glide_frequency_distance * glide_percentage_progess;
+
+          sid_set_voice_frequency(i, (word)(freq_after_pb_and_detune + glide_herz_to_add));
+        }
+      }
+
+      last_glide_update_micros = micros();
+    }
+  }
+
+  // LEFT OFF after writing this last block. check it out and then maybe lint & test?
+
+  // ok, now we can handle new midi messages
   if (Serial1.available() > 0) {
     byte incomingByte = Serial1.read();
     byte opcode  = incomingByte >> 4;
@@ -702,6 +788,11 @@ void loop () {
         case MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_THREE:
           temp_double = ((controller_value / 64.0) - 1);
           handle_message_voice_detune_change(2, temp_double);
+          break;
+
+        case MIDI_CONTROL_CHANGE_SET_GLIDE_TIME:
+          temp_double = (controller_value / 127.0);
+          handle_message_glide_time_change(controller_value);
           break;
 
         case MIDI_CONTROL_CHANGE_SET_FILTER_MODE_LP:
