@@ -136,9 +136,10 @@ void sid_transfer(byte address, byte data) {
   PORTF = ((address << 2) & B01110000) | (address & B00000011);
   PORTB = data;
   digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, LOW);
-  sid_state_bytes[address] = data;
-  delayMicroseconds(2); // TODO: useless since each call to digitalWrite takes ~20 µs anyway
+  // PORTC &= B01111111; // faster version of digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, LOW);
   digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
+  sid_state_bytes[address] = data;
+  // PORTC |= B10000000; // faster version of digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
 }
 
 void sid_zero_all_registers() {
