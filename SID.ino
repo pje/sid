@@ -264,6 +264,7 @@ void sid_set_filter(byte voice, boolean on) {
   sid_transfer(address, data);
 }
 
+// filter modes are additive (e.g. you can set LP & HP simultaneously)
 void sid_set_filter_mode(byte mode, boolean on) {
   byte address = REGISTER_ADDRESS_FILTER_MODE_VOLUME;
   byte data;
@@ -554,13 +555,9 @@ void loop () {
     if (channel == MIDI_CHANNEL && opcode >= B1000 && opcode <= B1110) { // Voice/Mode Messages, on our channel
       switch (opcode) {
       case MIDI_CONTROL_CHANGE:
-        while (Serial1.available() <= 0) {
-          delayMicroseconds(1);
-        }
+        while (Serial1.available() <= 0) {}
         controller_number = Serial1.read();
-        while (Serial1.available() <= 0) {
-          delayMicroseconds(1);
-        }
+        while (Serial1.available() <= 0) {}
         controller_value = Serial1.read();
 
         switch (controller_number) {
@@ -760,21 +757,15 @@ void loop () {
         }
         break;
       case MIDI_PROGRAM_CHANGE:
-        while (Serial1.available() <= 0) {
-          delayMicroseconds(1);
-        }
+        while (Serial1.available() <= 0) {}
         data_byte_one = Serial1.read();
         handle_message_program_change(data_byte_one);
         break;
 
       case MIDI_PITCH_BEND:
-        while (Serial1.available() <= 0) {
-          delayMicroseconds(1);
-        }
+        while (Serial1.available() <= 0) {}
         data_byte_one = Serial1.read();
-        while (Serial1.available() <= 0) {
-          delayMicroseconds(1);
-        }
+        while (Serial1.available() <= 0) {}
         data_byte_two = Serial1.read();
         pitchbend = data_byte_two;
         pitchbend = (pitchbend << 7);
@@ -782,26 +773,18 @@ void loop () {
         handle_message_pitchbend_change(pitchbend);
         break;
       case MIDI_NOTE_ON:
-        while (Serial1.available() <= 0) {
-          delayMicroseconds(1);
-        }
+        while (Serial1.available() <= 0) {}
         data_byte_one = Serial1.read();
-        while (Serial1.available() <= 0) {
-          delayMicroseconds(1);
-        }
+        while (Serial1.available() <= 0) {}
         data_byte_two = Serial1.read();
         if (data_byte_one < 96) { // SID can't handle freqs > B7
           handle_message_note_on(data_byte_one, data_byte_two);
         }
         break;
       case MIDI_NOTE_OFF:
-        while (Serial1.available() <= 0) {
-          delayMicroseconds(1);
-        }
+        while (Serial1.available() <= 0) {}
         data_byte_one = Serial1.read();
-        while (Serial1.available() <= 0) {
-          delayMicroseconds(1);
-        }
+        while (Serial1.available() <= 0) {}
         data_byte_two = Serial1.read();
         handle_message_note_off(data_byte_one, data_byte_two);
         break;
