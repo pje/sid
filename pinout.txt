@@ -46,7 +46,9 @@ Pin Number  Pin Name                      Mapped Pin Name
 44          AVCC1                         AVCC
 
 
-Pin Mappings For Arduino Micro
+Pin Mappings from Arduino -> SID
+
+Arduino Micro                    SID Pin
 
 PB0     RXLED (SS)               D0
 PB1     SCK                      D1
@@ -57,15 +59,13 @@ PB5     Digital Pin 9            D5
 PB6     Digital Pin 10           D6
 PB7     Digital Pin 11           D7
 
-
 PF0     Analog In 5              A0
 PF1     Analog In 4              A1
-PF2     -
-PF3     -
+PF2     -                        -
+PF3     -                        -
 PF4     Analog In 3              A2
 PF5     Analog In 2              A3
 PF6     Analog In 1              A4
 PF7     Analog In 0              -
 
-
-        Digital Pin 13           CS
+-       Digital Pin 13           CS
