@@ -1,7 +1,7 @@
 #include <math.h>
 
-const int ARDUINO_SID_CHIP_SELECT_PIN = 13;
-const int ARDUINO_SID_MASTER_CLOCK_PIN = 5;
+const int ARDUINO_SID_CHIP_SELECT_PIN = 13; // D13
+const int ARDUINO_SID_MASTER_CLOCK_PIN = 5; // D5
 
 const double CLOCK_SIGNAL_FACTOR = 0.0596;
 
