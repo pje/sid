@@ -1,4 +1,32 @@
-Pin Number  Pin Name                      Mapped Pin Name
+# Wired Pin Connections from Arduino Micro -> SID
+
+Arduino Micro                    SID Pin
+
+PB0     RXLED (SS)               D0
+PB1     SCK                      D1
+PB2     MOSI                     D2
+PB3     MISO                     D3
+PB4     Digital Pin 8            D4
+PB5     Digital Pin 9            D5
+PB6     Digital Pin 10           D6
+PB7     Digital Pin 11           D7
+
+PF0     Analog In 5              A0
+PF1     Analog In 4              A1
+PF2     -                        -
+PF3     -                        -
+PF4     Analog In 3              A2
+PF5     Analog In 2              A3
+PF6     Analog In 1              A4
+PF7     Analog In 0              -
+
+-       Digital Pin 13           CS
+
+
+
+# Pin Mappings from AVR names to Arduino Micro names (for reference)
+
+Pin Number  AVR Name                      Arduino Pin Name
 
 1           PE6 (INT.6/AIN0)              Digital pin 7
 2           UVcc                          +5V
@@ -44,28 +72,3 @@ Pin Number  Pin Name                      Mapped Pin Name
 42          AREF                          AEF
 43          GND3                          GND
 44          AVCC1                         AVCC
-
-
-Pin Mappings from Arduino -> SID
-
-Arduino Micro                    SID Pin
-
-PB0     RXLED (SS)               D0
-PB1     SCK                      D1
-PB2     MOSI                     D2
-PB3     MISO                     D3
-PB4     Digital Pin 8            D4
-PB5     Digital Pin 9            D5
-PB6     Digital Pin 10           D6
-PB7     Digital Pin 11           D7
-
-PF0     Analog In 5              A0
-PF1     Analog In 4              A1
-PF2     -                        -
-PF3     -                        -
-PF4     Analog In 3              A2
-PF5     Analog In 2              A3
-PF6     Analog In 1              A4
-PF7     Analog In 0              -
-
--       Digital Pin 13           CS
