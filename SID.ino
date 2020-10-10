@@ -317,36 +317,6 @@ void nullify_voice_notes() {
   }
 }
 
-void setup() {
-  DDRF = B01110011; // initialize 5 PORTF pins as output (connected to A0-A4)
-  DDRB = B11111111; // initialize 8 PORTB pins as output (connected to D0-D7)
-  // technically SID allows us to read from its last 4 registers, but we don't
-  // need to, so we just always keep SID's R/W pin low (signifying "write"),
-  // which seems to work ok
-
-  polyphony = 3;
-  nullify_voice_notes();
-
-  start_clock();
-
-  pinMode(ARDUINO_SID_CHIP_SELECT_PIN, OUTPUT);
-  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
-
-  sid_zero_all_registers();
-  for (int i = 0; i < 3; i++) {
-    sid_set_pulse_width(i, DEFAULT_PULSE_WIDTH_VALUE);
-    sid_set_waveform(i, DEFAULT_WAVEFORM_VALUE);
-    sid_set_attack(i, DEFAULT_ATTACK_VALUE);
-    sid_set_decay(i, DEFAULT_DECAY_VALUE);
-    sid_set_sustain(i, DEFAULT_SUSTAIN_VALUE);
-    sid_set_release(i, DEFAULT_RELEASE_VALUE);
-  }
-  sid_set_volume(15);
-
-  Serial1.begin(31250, SERIAL_8N1);
-  Serial.begin(31250);
-}
-
 void handle_message_voice_attack_change(byte voice, byte envelope_value) {
   sid_set_attack(voice, envelope_value);
 
@@ -537,6 +507,40 @@ void handle_state_dump_request() {
     Serial.print(sid_state_bytes[i], BIN);
     Serial.println("");
   }
+}
+
+void setup() {
+  delay(1000);
+  // without this the micro locks up on startup and requires a
+  // reset button push? (only when not connected to USB), which is the use-case
+
+  DDRF = B01110011; // initialize 5 PORTF pins as output (connected to A0-A4)
+  DDRB = B11111111; // initialize 8 PORTB pins as output (connected to D0-D7)
+  // technically SID allows us to read from its last 4 registers, but we don't
+  // need to, so we just always keep SID's R/W pin low (signifying "write"),
+  // which seems to work ok
+
+  polyphony = 3;
+  nullify_voice_notes();
+
+  start_clock();
+
+  pinMode(ARDUINO_SID_CHIP_SELECT_PIN, OUTPUT);
+  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
+
+  sid_zero_all_registers();
+  for (int i = 0; i < 3; i++) {
+    sid_set_pulse_width(i, DEFAULT_PULSE_WIDTH_VALUE);
+    sid_set_waveform(i, DEFAULT_WAVEFORM_VALUE);
+    sid_set_attack(i, DEFAULT_ATTACK_VALUE);
+    sid_set_decay(i, DEFAULT_DECAY_VALUE);
+    sid_set_sustain(i, DEFAULT_SUSTAIN_VALUE);
+    sid_set_release(i, DEFAULT_RELEASE_VALUE);
+  }
+  sid_set_volume(15);
+
+  Serial1.begin(31250, SERIAL_8N1);
+  Serial.begin(31250);
 }
 
 void loop () {
