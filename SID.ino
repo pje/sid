@@ -56,6 +56,7 @@ const byte MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_ONE            = 16;
 const byte MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_ONE                = 17;
 const byte MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_ONE              = 18;
 const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_ONE         = 38;
+const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_ONE     = 70;
 const byte MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_ONE              = 39;
 const byte MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_ONE               = 40;
 const byte MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_ONE             = 41;
@@ -69,6 +70,7 @@ const byte MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_TWO            = 24;
 const byte MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_TWO                = 25;
 const byte MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_TWO              = 26;
 const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_TWO         = 46;
+const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_TWO     = 78;
 const byte MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_TWO              = 47;
 const byte MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_TWO               = 48;
 const byte MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_TWO             = 49;
@@ -82,6 +84,7 @@ const byte MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_THREE          = 33;
 const byte MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_THREE              = 34;
 const byte MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_THREE            = 35;
 const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_THREE       = 54;
+const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_THREE   = 86;
 const byte MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_THREE            = 55;
 const byte MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_THREE             = 56;
 const byte MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_THREE           = 57;
@@ -117,6 +120,11 @@ const int DEFAULT_ATTACK_VALUE = 0;
 const int DEFAULT_DECAY_VALUE = 14;
 const int DEFAULT_SUSTAIN_VALUE = 0;
 const int DEFAULT_RELEASE_VALUE = 0;
+
+// experimental: used to implement 14-bit resolution for PW values
+// spread over two sequential CC messages
+word msb = 0;
+byte lsb = 0;
 
 int num_presets = 0;
 
@@ -630,15 +638,31 @@ void loop () {
 
         case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_ONE:
           temp_double = (controller_value / 127.0) * 4095.0;
-          handle_message_voice_pulse_width_change(0, (word)temp_double);
+          msb = (word)temp_double;
+          handle_message_voice_pulse_width_change(0, msb + lsb);
           break;
         case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_TWO:
           temp_double = (controller_value / 127.0) * 4095.0;
-          handle_message_voice_pulse_width_change(1, (word)temp_double);
+          msb = (word)temp_double;
+          handle_message_voice_pulse_width_change(1, msb + lsb);
           break;
         case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_THREE:
           temp_double = (controller_value / 127.0) * 4095.0;
-          handle_message_voice_pulse_width_change(2, (word)temp_double);
+          msb = (word)temp_double;
+          handle_message_voice_pulse_width_change(2, msb + lsb);
+          break;
+
+        case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_ONE:
+          lsb = controller_value & 0b00011111;
+          handle_message_voice_pulse_width_change(0, msb + lsb);
+          break;
+        case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_TWO:
+          lsb = controller_value & 0b00011111;
+          handle_message_voice_pulse_width_change(1, msb + lsb);
+          break;
+        case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_THREE:
+          lsb = controller_value & 0b00011111;
+          handle_message_voice_pulse_width_change(2, msb + lsb);
           break;
 
         case MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_ONE:
