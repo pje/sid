@@ -101,6 +101,16 @@ const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_TWO              = 72; // 7-bit 
 const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_THREE            = 80; // 7-bit value
 const byte MIDI_CONTROL_CHANGE_SET_VOLUME                        = 43; // 4-bit value
 
+const byte MIDI_CONTROL_CHANGE_RPN_MSB                           = 101;
+const byte MIDI_CONTROL_CHANGE_RPN_LSB                           = 100;
+const byte MIDI_CONTROL_CHANGE_DATA_ENTRY                        = 6;
+const byte MIDI_CONTROL_CHANGE_DATA_ENTRY_FINE                   = 38;
+
+const word MIDI_RPN_PITCH_BEND_SENSITIVITY                       = 0;
+const word MIDI_RPN_MASTER_FINE_TUNING                           = 1;
+const word MIDI_RPN_MASTER_COARSE_TUNING                         = 2;
+const word MIDI_RPN_NULL                                         = 16383;
+
 const byte MIDI_CHANNEL = 0; // "channel 1" (zero-indexed)
 const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_POLYPHONIC        = 0;
 const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC        = 1;
@@ -121,10 +131,17 @@ const int DEFAULT_DECAY_VALUE = 14;
 const int DEFAULT_SUSTAIN_VALUE = 0;
 const int DEFAULT_RELEASE_VALUE = 0;
 
-// experimental: used to implement 14-bit resolution for PW values
-// spread over two sequential CC messages
-word msb = 0;
-byte lsb = 0;
+// experimental: used to implement 14-bit resolution for PW values spread over two sequential CC messages
+word pw_v1     = 0;
+byte pw_v1_lsb = 0;
+word pw_v2     = 0;
+byte pw_v2_lsb = 0;
+word pw_v3     = 0;
+byte pw_v3_lsb = 0;
+
+// used to implement RPN messages
+word rpn_value = 0;
+word data_entry = 0;
 
 int num_presets = 0;
 
@@ -638,31 +655,34 @@ void loop () {
 
         case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_ONE:
           temp_double = (controller_value / 127.0) * 4095.0;
-          msb = (word)temp_double;
-          handle_message_voice_pulse_width_change(0, msb + lsb);
+          pw_v1 = ((word)temp_double) + pw_v1_lsb;
+          handle_message_voice_pulse_width_change(0, pw_v1);
           break;
         case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_TWO:
           temp_double = (controller_value / 127.0) * 4095.0;
-          msb = (word)temp_double;
-          handle_message_voice_pulse_width_change(1, msb + lsb);
+          pw_v2 = ((word)temp_double) + pw_v2_lsb;
+          handle_message_voice_pulse_width_change(1, pw_v2);
           break;
         case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_THREE:
           temp_double = (controller_value / 127.0) * 4095.0;
-          msb = (word)temp_double;
-          handle_message_voice_pulse_width_change(2, msb + lsb);
+          pw_v3 = ((word)temp_double) + pw_v3_lsb;
+          handle_message_voice_pulse_width_change(2, pw_v3);
           break;
 
         case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_ONE:
-          lsb = controller_value & 0b00011111;
-          handle_message_voice_pulse_width_change(0, msb + lsb);
+          pw_v1_lsb = controller_value & 0b00011111;
+          pw_v1 += pw_v1_lsb;
+          handle_message_voice_pulse_width_change(0, pw_v1);
           break;
         case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_TWO:
-          lsb = controller_value & 0b00011111;
-          handle_message_voice_pulse_width_change(1, msb + lsb);
+          pw_v2_lsb = controller_value & 0b00011111;
+          pw_v2 += pw_v2_lsb;
+          handle_message_voice_pulse_width_change(1, pw_v2);
           break;
         case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_THREE:
-          lsb = controller_value & 0b00011111;
-          handle_message_voice_pulse_width_change(2, msb + lsb);
+          pw_v3_lsb = controller_value & 0b00011111;
+          pw_v3 += pw_v3_lsb;
+          handle_message_voice_pulse_width_change(2, pw_v3);
           break;
 
         case MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_ONE:
@@ -775,6 +795,22 @@ void loop () {
 
         case MIDI_CONTROL_CHANGE_BANK_SELECT:
           handle_message_bank_select(controller_value);
+          break;
+
+        case MIDI_CONTROL_CHANGE_RPN_LSB:
+          rpn_value += (controller_value & 0b01111111);
+          break;
+
+        case MIDI_CONTROL_CHANGE_RPN_MSB:
+          temp_double = (controller_value / 127.0) * 4095.0;
+          rpn_value = (word)temp_double;
+          break;
+
+        case MIDI_CONTROL_CHANGE_DATA_ENTRY:
+          data_entry = controller_value;
+          if (rpn_value == MIDI_RPN_PITCH_BEND_SENSITIVITY) {
+            midi_pitch_bend_max_semitones = data_entry;
+          }
           break;
 
         case 127:
