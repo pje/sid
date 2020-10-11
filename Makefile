@@ -15,6 +15,7 @@ upload: build check-board
 	arduino-cli upload --port "$(BOARD_PORT)" --fqbn arduino:avr:micro --verbose SID.ino
 
 format:
+	# clang-format -i SID.ino
 	astyle --style=google --indent=spaces=2 SID.ino
 
 .PHONY: build check-board deps format upload verify
