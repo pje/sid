@@ -4,6 +4,7 @@ deps:
 	brew install arduino-cli
 	arduino-cli core update-index
 	arduino-cli core install arduino:avr
+	arduino-cli lib install USBMIDI
 
 build:
 	arduino-cli compile --fqbn arduino:avr:micro --verbose SID.ino

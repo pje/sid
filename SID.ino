@@ -1,4 +1,5 @@
 #include <math.h>
+#include <usbmidi.h>
 
 const int ARDUINO_SID_CHIP_SELECT_PIN = 13; // D13
 const int ARDUINO_SID_MASTER_CLOCK_PIN = 5; // D5
@@ -564,13 +565,12 @@ void setup() {
   }
   sid_set_volume(15);
 
-  Serial1.begin(31250, SERIAL_8N1);
   Serial.begin(31250);
 }
 
-void loop () {
-  if (Serial1.available() > 0) {
-    byte incomingByte = Serial1.read();
+void handle_midi_input(Stream *midi_port) {
+  if (midi_port->available() > 0) {
+    byte incomingByte = midi_port->read();
     byte opcode  = incomingByte >> 4;
     byte channel = incomingByte & (B00001111);
     byte data_byte_one = 0;
@@ -584,10 +584,10 @@ void loop () {
     if (channel == MIDI_CHANNEL && opcode >= B1000 && opcode <= B1110) { // Voice/Mode Messages, on our channel
       switch (opcode) {
       case MIDI_CONTROL_CHANGE:
-        while (Serial1.available() <= 0) {}
-        controller_number = Serial1.read();
-        while (Serial1.available() <= 0) {}
-        controller_value = Serial1.read();
+        while (midi_port->available() <= 0) {}
+        controller_number = midi_port->read();
+        while (midi_port->available() <= 0) {}
+        controller_value = midi_port->read();
 
         switch (controller_number) {
         case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_SQUARE:
@@ -821,38 +821,45 @@ void loop () {
         }
         break;
       case MIDI_PROGRAM_CHANGE:
-        while (Serial1.available() <= 0) {}
-        data_byte_one = Serial1.read();
+        while (midi_port->available() <= 0) {}
+        data_byte_one = midi_port->read();
         handle_message_program_change(data_byte_one);
         break;
 
       case MIDI_PITCH_BEND:
-        while (Serial1.available() <= 0) {}
-        data_byte_one = Serial1.read();
-        while (Serial1.available() <= 0) {}
-        data_byte_two = Serial1.read();
+        while (midi_port->available() <= 0) {}
+        data_byte_one = midi_port->read();
+        while (midi_port->available() <= 0) {}
+        data_byte_two = midi_port->read();
         pitchbend = data_byte_two;
         pitchbend = (pitchbend << 7);
         pitchbend |= data_byte_one;
         handle_message_pitchbend_change(pitchbend);
         break;
       case MIDI_NOTE_ON:
-        while (Serial1.available() <= 0) {}
-        data_byte_one = Serial1.read();
-        while (Serial1.available() <= 0) {}
-        data_byte_two = Serial1.read();
+        while (midi_port->available() <= 0) {}
+        data_byte_one = midi_port->read();
+        while (midi_port->available() <= 0) {}
+        data_byte_two = midi_port->read();
         if (data_byte_one < 96) { // SID can't handle freqs > B7
           handle_message_note_on(data_byte_one, data_byte_two);
         }
         break;
       case MIDI_NOTE_OFF:
-        while (Serial1.available() <= 0) {}
-        data_byte_one = Serial1.read();
-        while (Serial1.available() <= 0) {}
-        data_byte_two = Serial1.read();
+        while (midi_port->available() <= 0) {}
+        data_byte_one = midi_port->read();
+        while (midi_port->available() <= 0) {}
+        data_byte_two = midi_port->read();
         handle_message_note_off(data_byte_one, data_byte_two);
         break;
       }
     }
   }
+}
+
+void loop () {
+  USBMIDI.poll();
+
+  handle_midi_input(&USBMIDI);
+  handle_midi_input(&Serial1);
 }
