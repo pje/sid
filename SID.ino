@@ -56,6 +56,7 @@ const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_SQUARE     = 14; // 1-bit 
 const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_NOISE      = 15; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_ONE            = 16; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_ONE                = 17; // 1-bit value
+const byte MIDI_CONTROL_CHANGE_SET_TEST_VOICE_ONE                = 82; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_ONE              = 18; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_ONE         = 38; // 7-bit value (12-bit total)
 const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_ONE     = 70; // 5-bit value (12-bit total)
@@ -70,6 +71,7 @@ const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_SQUARE     = 22; // 1-bit 
 const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_NOISE      = 23; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_TWO            = 24; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_TWO                = 25; // 1-bit value
+const byte MIDI_CONTROL_CHANGE_SET_TEST_VOICE_TWO                = 90; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_TWO              = 26; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_TWO         = 46; // 7-bit value (12-bit total)
 const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_TWO     = 78; // 5-bit value (12-bit total)
@@ -84,6 +86,7 @@ const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_SQUARE   = 30; // 1-bit 
 const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_NOISE    = 31; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_THREE          = 33; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_THREE              = 34; // 1-bit value
+const byte MIDI_CONTROL_CHANGE_SET_TEST_VOICE_THREE              = 98; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_THREE            = 35; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_THREE       = 54; // 7-bit value (12-bit total)
 const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_THREE   = 86; // 5-bit value (12-bit total)
@@ -591,6 +594,16 @@ void handle_message_voice_sync_change(byte voice, boolean on) {
   }
 }
 
+void handle_message_voice_test_change(byte voice, boolean on) {
+  sid_set_test(voice, on);
+
+  if (polyphony == 3) {
+    for (int i = 0; i < 3; i++) {
+      sid_set_test(voice, on);
+    }
+  }
+}
+
 void handle_message_voice_detune_change(byte voice, double detune_factor) {
   voice_detune_percents[voice] = detune_factor;
   double semitone_change = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[voice] * detune_max_semitones);
@@ -651,6 +664,8 @@ void handle_message_note_off(byte note_number, byte velocity) {
       notes_playing[i] = NULL;
       note_on_times[i] = NULL;
       sid_set_gate(i, false);
+      sid_set_test(i, true);
+      sid_set_test(i, false);
     }
   }
 }
@@ -809,6 +824,16 @@ void handle_midi_input(Stream *midi_port) {
         case MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_THREE:
           // hard-syncs frequency of voice 3 to voice 2
           handle_message_voice_sync_change(2, controller_value == 127);
+          break;
+
+        case MIDI_CONTROL_CHANGE_SET_TEST_VOICE_ONE:
+          handle_message_voice_test_change(0, controller_value == 127);
+          break;
+        case MIDI_CONTROL_CHANGE_SET_TEST_VOICE_TWO:
+          handle_message_voice_test_change(1, controller_value == 127);
+          break;
+        case MIDI_CONTROL_CHANGE_SET_TEST_VOICE_THREE:
+          handle_message_voice_test_change(2, controller_value == 127);
           break;
 
         case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_ONE:
