@@ -356,13 +356,13 @@ void sid_set_ring_mod(int voice, boolean on) {
 
 void sid_set_test(int voice, boolean on) {
   byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_CONTROL;
-  byte data = (on ? (sid_state_bytes[address] | SID_TEST) : (sid_state_bytes[address] & B11111101));
+  byte data = (on ? (sid_state_bytes[address] | SID_TEST) : (sid_state_bytes[address] & ~SID_TEST));
   sid_transfer(address, data);
 }
 
 void sid_set_sync(int voice, boolean on) {
   byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_CONTROL;
-  byte data = (on ? (sid_state_bytes[address] | B00000010) : (sid_state_bytes[address] & B11111101));
+  byte data = (on ? (sid_state_bytes[address] | SID_SYNC) : (sid_state_bytes[address] & ~SID_SYNC));
   sid_transfer(address, data);
 }
 
