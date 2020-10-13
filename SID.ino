@@ -716,9 +716,18 @@ void handle_state_dump_request() {
   // TODO: this should also print the state of our 'virtual' controls
   // voice detune, LFOs (potentially)
   for (int i = 0; i < 25; i++) {
-    Serial.print(sid_state_bytes[i], BIN);
-    Serial.println("");
+    static char str[9];
+    str[0] = '\0';
+
+    for (int j = 128; j > 0; j >>= 1) {
+      strcat(str, ((sid_state_bytes[i] & j) == j) ? "1" : "0");
+    }
+
+    Serial.println(str);
   }
+  Serial.println("");
+  Serial.print(filter_frequency);
+  Serial.println("");
 }
 
 void setup() {
@@ -952,8 +961,7 @@ void handle_midi_input(Stream *midi_port) {
           break;
 
         case MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY:
-          temp_double = (controller_value / 127.0) * 2047.0;
-          filter_frequency = (word)temp_double;
+          filter_frequency = ((word)controller_value) << 4;
           sid_set_filter_frequency(filter_frequency);
           break;
         case MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY_LSB:
