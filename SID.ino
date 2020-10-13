@@ -95,7 +95,8 @@ const byte MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_THREE             = 56; // 4-bit 
 const byte MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_THREE           = 57; // 4-bit value
 const byte MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_THREE           = 58; // 4-bit value
 
-const byte MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY              = 36; // 11-bit value
+const byte MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY              = 36; // 7-bit value (11-bit total)
+const byte MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY_LSB          = 68; // 4-bit value (11-bit total)
 const byte MIDI_CONTROL_CHANGE_SET_FILTER_RESONANCE              = 37; // 4-bit value
 const byte MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_LP             = 60; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_BP             = 61; // 1-bit value
@@ -145,6 +146,8 @@ word pw_v2     = 0;
 byte pw_v2_lsb = 0;
 word pw_v3     = 0;
 byte pw_v3_lsb = 0;
+
+word filter_frequency = 0;
 
 // used to implement RPN messages
 word rpn_value = 0;
@@ -940,7 +943,12 @@ void handle_midi_input(Stream *midi_port) {
 
         case MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY:
           temp_double = (controller_value / 127.0) * 2047.0;
-          sid_set_filter_frequency((word)temp_double);
+          filter_frequency = (word)temp_double;
+          sid_set_filter_frequency(filter_frequency);
+          break;
+        case MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY_LSB:
+          filter_frequency += (controller_value & 0b00001111);
+          sid_set_filter_frequency(filter_frequency);
           break;
         case MIDI_CONTROL_CHANGE_SET_FILTER_RESONANCE:
           controller_value >> 3;
