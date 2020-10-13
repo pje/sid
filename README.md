@@ -8,7 +8,8 @@ Works on My Computer™
 
 #### Resources
 
-- [The original MOS specsheet for the 6581](http://archive.6502.org/datasheets/mos_6581_sid.pdf). Wonderful example of technical writing.
+- [The original MOS specsheet for the 6581](http://archive.6502.org/datasheets/mos_6581_sid.pdf). Wonderful example of technical writing, but wrong in some specifics :(
+- The original specsheet, [converted to text](http://www.sidmusic.org/sid/sidtech2.html)
 - [Sparkfun's "Introduction To MIDI Hardware & Electronic Implementation"](https://learn.sparkfun.com/tutorials/midi-tutorial/hardware--electronic-implementation)
 
 ```
