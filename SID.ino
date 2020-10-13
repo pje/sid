@@ -19,22 +19,22 @@ const byte REGISTER_ADDRESS_FILTER_FREQUENCY_HI      = 22;
 const byte REGISTER_ADDRESS_FILTER_RESONANCE         = 23;
 const byte REGISTER_ADDRESS_FILTER_MODE_VOLUME       = 24;
 
-const byte SID_NOISE       = B10000000;
-const byte SID_SQUARE      = B01000000;
-const byte SID_RAMP        = B00100000;
-const byte SID_TRIANGLE    = B00010000;
-const byte SID_TEST        = B00001000;
-const byte SID_RING        = B00000100;
-const byte SID_SYNC        = B01000010;
-const byte SID_3OFF        = B10000000;
-const byte SID_FILT_HP     = B01000000;
-const byte SID_FILT_BP     = B00100000;
-const byte SID_FILT_LP     = B00010000;
-const byte SID_FILT_OFF    = B00000000;
-const byte SID_FILT_VOICE1 = B00000001;
-const byte SID_FILT_VOICE2 = B00000010;
-const byte SID_FILT_VOICE3 = B00000100;
-const byte SID_FILT_EXT    = B00001000;
+const byte SID_NOISE         = B10000000;
+const byte SID_SQUARE        = B01000000;
+const byte SID_RAMP          = B00100000;
+const byte SID_TRIANGLE      = B00010000;
+const byte SID_TEST          = B00001000;
+const byte SID_RING          = B00000100;
+const byte SID_SYNC          = B01000010;
+const byte SID_3OFF          = B10000000;
+const byte SID_FILTER_HP     = B01000000;
+const byte SID_FILTER_BP     = B00100000;
+const byte SID_FILTER_LP     = B00010000;
+const byte SID_FILTER_OFF    = B00000000;
+const byte SID_FILTER_VOICE1 = B00000001;
+const byte SID_FILTER_VOICE2 = B00000010;
+const byte SID_FILTER_VOICE3 = B00000100;
+const byte SID_FILTER_EXT    = B00001000;
 
 // since we have to set all the bits in a register byte at once,
 // we must maintain a copy of the register's state so we don't clobber bits
@@ -93,9 +93,9 @@ const byte MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_THREE           = 58; // 4-bit 
 
 const byte MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY              = 36; // 11-bit value
 const byte MIDI_CONTROL_CHANGE_SET_FILTER_RESONANCE              = 37; // 4-bit value
-const byte MIDI_CONTROL_CHANGE_SET_FILTER_MODE_LP                = 60; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_FILTER_MODE_BP                = 61; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_FILTER_MODE_HP                = 62; // 1-bit value
+const byte MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_LP             = 60; // 1-bit value
+const byte MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_BP             = 61; // 1-bit value
+const byte MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_HP             = 62; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_THREE_OFF        = 63; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_ONE              = 64; // 7-bit value
 const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_TWO              = 72; // 7-bit value
@@ -276,11 +276,11 @@ void sid_set_filter(byte voice, boolean on) {
   byte data;
   byte voice_filter_mask;
   if (voice == 0) {
-    voice_filter_mask = SID_FILT_VOICE1;
+    voice_filter_mask = SID_FILTER_VOICE1;
   } else if(voice == 1) {
-    voice_filter_mask = SID_FILT_VOICE2;
+    voice_filter_mask = SID_FILTER_VOICE2;
   } else if(voice == 2) {
-    voice_filter_mask = SID_FILT_VOICE3;
+    voice_filter_mask = SID_FILTER_VOICE3;
   }
   if (on) {
     data = sid_state_bytes[address] | voice_filter_mask;
@@ -757,26 +757,14 @@ void handle_midi_input(Stream *midi_port) {
           handle_message_voice_detune_change(2, temp_double);
           break;
 
-        case MIDI_CONTROL_CHANGE_SET_FILTER_MODE_LP:
-          if (controller_value == 127) {
-            sid_set_filter_mode(SID_FILT_LP, true);
-          } else if (controller_value == 0) {
-            sid_set_filter_mode(SID_FILT_LP, false);
-          }
+        case MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_LP:
+          sid_set_filter_mode(SID_FILTER_LP, controller_value == 127);
           break;
-        case MIDI_CONTROL_CHANGE_SET_FILTER_MODE_BP:
-          if (controller_value == 127) {
-            sid_set_filter_mode(SID_FILT_BP, true);
-          } else if (controller_value == 0) {
-            sid_set_filter_mode(SID_FILT_BP, false);
-          }
+        case MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_BP:
+          sid_set_filter_mode(SID_FILTER_BP, controller_value == 127);
           break;
-        case MIDI_CONTROL_CHANGE_SET_FILTER_MODE_HP:
-          if (controller_value == 127) {
-            sid_set_filter_mode(SID_FILT_HP, true);
-          } else if (controller_value == 0) {
-            sid_set_filter_mode(SID_FILT_HP, false);
-          }
+        case MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_HP:
+          sid_set_filter_mode(SID_FILTER_HP, controller_value == 127);
           break;
 
         case MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY:
