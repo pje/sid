@@ -122,8 +122,8 @@ byte notes_playing[MAX_POLYPHONY];
 
 int midi_pitch_bend_max_semitones = 5;
 double current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
-double voice_pitch_multiplier_factors[MAX_POLYPHONY] = { 0.0, 0.0, 0.0 }; // [-1.0 .. 1.0]
-int voice_pitch_multiplier_max_factor = 5;
+double voice_detune_percents[MAX_POLYPHONY] = { 0.0, 0.0, 0.0 }; // [-1.0 .. 1.0]
+int detune_max_semitones = 5;
 
 const int DEFAULT_PULSE_WIDTH_VALUE = 2048; // (2**12 - 1) / 2
 const int DEFAULT_WAVEFORM_VALUE = SID_TRIANGLE;
@@ -446,8 +446,8 @@ void handle_message_voice_sync_change(byte voice, boolean on) {
 }
 
 void handle_message_voice_detune_change(byte voice, double detune_factor) {
-  voice_pitch_multiplier_factors[voice] = detune_factor;
-  double semitone_change = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_pitch_multiplier_factors[voice] * voice_pitch_multiplier_max_factor);
+  voice_detune_percents[voice] = detune_factor;
+  double semitone_change = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[voice] * detune_max_semitones);
   double frequency = MIDI_NOTES_TO_FREQUENCIES[notes_playing[voice]] * pow(2, semitone_change / 12.0);
   sid_set_voice_frequency(voice, (word)frequency);
 }
@@ -457,7 +457,7 @@ void handle_message_note_on(byte note_number, byte velocity) {
   int note_voice = 0;
   if (polyphony == 1) { // we're mono. for now all voices will have the same frequency.
     for (int i = 0; i < MAX_POLYPHONY; i++ ) {
-      temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_pitch_multiplier_factors[i] * voice_pitch_multiplier_max_factor);
+      temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
       temp_double = MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, temp_double / 12.0);
       sid_set_gate(i, false);
       sid_set_voice_frequency(i, (word)temp_double);
@@ -480,7 +480,7 @@ void handle_message_note_on(byte note_number, byte velocity) {
         }
       }
     }
-    temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_pitch_multiplier_factors[note_voice] * voice_pitch_multiplier_max_factor);
+    temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[note_voice] * detune_max_semitones);
     temp_double = MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, temp_double / 12.0);
     sid_set_gate(note_voice, false);
     sid_set_voice_frequency(note_voice, (word)temp_double);
@@ -502,7 +502,7 @@ void handle_message_pitchbend_change(word pitchbend) {
   current_pitchbend_amount = ((pitchbend / 8192.0) - 1); // 8192 is the "neutral" pitchbend value (half of 2**14)
   for (int i = 0; i < MAX_POLYPHONY; i++) {
     if (notes_playing[i] != NULL) {
-      temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_pitch_multiplier_factors[i] * voice_pitch_multiplier_max_factor);
+      temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
       temp_double = MIDI_NOTES_TO_FREQUENCIES[notes_playing[i]] * pow(2, temp_double / 12.0);
       sid_set_voice_frequency(i, (word)temp_double);
     }
@@ -798,6 +798,7 @@ void handle_midi_input(Stream *midi_port) {
           data_entry = controller_value;
           if (rpn_value == MIDI_RPN_PITCH_BEND_SENSITIVITY) {
             midi_pitch_bend_max_semitones = data_entry;
+            detune_max_semitones = data_entry;
           }
           break;
 
