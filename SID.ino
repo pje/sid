@@ -158,6 +158,7 @@ word pw_v3     = 0;
 byte pw_v3_lsb = 0;
 
 word filter_frequency = 0;
+byte filter_frequency_lsb = 0;
 
 // used to implement RPN messages
 word rpn_value = 0;
@@ -453,13 +454,17 @@ void sid_set_filter(byte voice, boolean on) {
 }
 
 // filter modes are additive (e.g. you can set LP & HP simultaneously)
+//
+// const byte SID_FILTER_HP     = B01000000;
+// const byte SID_FILTER_BP     = B00100000;
+// const byte SID_FILTER_LP     = B00010000;
 void sid_set_filter_mode(byte mode, boolean on) {
   byte address = REGISTER_ADDRESS_FILTER_MODE_VOLUME;
-  byte data;
+  byte data = sid_state_bytes[address];
   if (on) {
-    data = (sid_state_bytes[address] & B00001111) | mode;
+    data |= mode;
   } else {
-    data = (sid_state_bytes[address] & B00001111) & ~mode;
+    data &= ~mode;
   }
   sid_transfer(address, data);
 }
@@ -677,8 +682,8 @@ void handle_message_note_off(byte note_number, byte velocity) {
       notes_playing[i] = NULL;
       note_on_times[i] = NULL;
       sid_set_gate(i, false);
-      sid_set_test(i, true);
-      sid_set_test(i, false);
+      // as a workaround to leakage, iff release is done, we can set the voice
+      // frequency to 0 now
     }
   }
 }
@@ -712,9 +717,8 @@ void handle_message_bank_select(byte bank_number) {
 }
 
 void handle_state_dump_request() {
-  // for testing purposes, we'll print the state of our sid representation
-  // TODO: this should also print the state of our 'virtual' controls
-  // voice detune, LFOs (potentially)
+  // for testing purposes, print the state of our sid representation, which
+  // should (hopefully) mirror what the SID's registers are right now
   for (int i = 0; i < 25; i++) {
     static char str[9];
     str[0] = '\0';
@@ -725,9 +729,6 @@ void handle_state_dump_request() {
 
     Serial.println(str);
   }
-  Serial.println("");
-  Serial.print(filter_frequency);
-  Serial.println("");
 }
 
 void setup() {
@@ -859,35 +860,31 @@ void handle_midi_input(Stream *midi_port) {
           break;
 
         case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_ONE:
-          temp_double = (controller_value / 127.0) * 4095.0;
-          pw_v1 = ((word)temp_double) + pw_v1_lsb;
-          handle_message_voice_pulse_width_change(0, pw_v1);
-          break;
-        case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_TWO:
-          temp_double = (controller_value / 127.0) * 4095.0;
-          pw_v2 = ((word)temp_double) + pw_v2_lsb;
-          handle_message_voice_pulse_width_change(1, pw_v2);
-          break;
-        case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_THREE:
-          temp_double = (controller_value / 127.0) * 4095.0;
-          pw_v3 = ((word)temp_double) + pw_v3_lsb;
-          handle_message_voice_pulse_width_change(2, pw_v3);
-          break;
-
-        case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_ONE:
-          pw_v1_lsb = controller_value & 0b00011111;
+          pw_v1 = ((word)controller_value) << 5;
           pw_v1 += pw_v1_lsb;
           handle_message_voice_pulse_width_change(0, pw_v1);
           break;
-        case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_TWO:
-          pw_v2_lsb = controller_value & 0b00011111;
+        case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_TWO:
+          pw_v2 = ((word)controller_value) << 5;
           pw_v2 += pw_v2_lsb;
           handle_message_voice_pulse_width_change(1, pw_v2);
           break;
-        case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_THREE:
-          pw_v3_lsb = controller_value & 0b00011111;
+        case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_THREE:
+          pw_v3 = ((word)controller_value) << 5;
           pw_v3 += pw_v3_lsb;
           handle_message_voice_pulse_width_change(2, pw_v3);
+          break;
+
+        // LSB messages will not trigger PW change on the SID!
+        // must be followed up by a MSB message to trigger a SID update w/ both
+        case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_ONE:
+          pw_v1_lsb = controller_value & 0b00011111;
+          break;
+        case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_TWO:
+          pw_v2_lsb = controller_value & 0b00011111;
+          break;
+        case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_THREE:
+          pw_v3_lsb = controller_value & 0b00011111;
           break;
 
         case MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_ONE:
@@ -961,13 +958,14 @@ void handle_midi_input(Stream *midi_port) {
           break;
 
         case MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY:
-          filter_frequency = ((word)controller_value) << 4;
+          filter_frequency = (((word)controller_value) << 4) + filter_frequency_lsb;
           sid_set_filter_frequency(filter_frequency);
           break;
+        // same as PW LSB message, LSB will not trigger a SID update until we receive the MSB message next.
         case MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY_LSB:
-          filter_frequency += (controller_value & 0b00001111);
-          sid_set_filter_frequency(filter_frequency);
+          filter_frequency_lsb = (controller_value & 0b00001111);
           break;
+
         case MIDI_CONTROL_CHANGE_SET_FILTER_RESONANCE:
           sid_set_filter_resonance(min(controller_value, 16));
           break;
