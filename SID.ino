@@ -131,12 +131,12 @@ double current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
 double voice_detune_percents[MAX_POLYPHONY] = { 0.0, 0.0, 0.0 }; // [-1.0 .. 1.0]
 int detune_max_semitones = 5;
 
-const int DEFAULT_PULSE_WIDTH_VALUE = 2048; // (2**12 - 1) / 2
-const int DEFAULT_WAVEFORM_VALUE = SID_TRIANGLE;
-const int DEFAULT_ATTACK_VALUE = 0;
-const int DEFAULT_DECAY_VALUE = 14;
-const int DEFAULT_SUSTAIN_VALUE = 0;
-const int DEFAULT_RELEASE_VALUE = 0;
+const int DEFAULT_PULSE_WIDTH = 2048; // (2**12 - 1) / 2
+const int DEFAULT_WAVEFORM = SID_TRIANGLE;
+const int DEFAULT_ATTACK = 2;
+const int DEFAULT_DECAY = 3;
+const int DEFAULT_SUSTAIN = 14;
+const int DEFAULT_RELEASE = 4;
 
 // experimental: used to implement 14-bit resolution for PW values spread over two sequential CC messages
 word pw_v1     = 0;
@@ -729,12 +729,12 @@ void setup() {
 
   sid_zero_all_registers();
   for (int i = 0; i < MAX_POLYPHONY; i++) {
-    sid_set_pulse_width(i, DEFAULT_PULSE_WIDTH_VALUE);
-    sid_set_waveform(i, DEFAULT_WAVEFORM_VALUE);
-    sid_set_attack(i, DEFAULT_ATTACK_VALUE);
-    sid_set_decay(i, DEFAULT_DECAY_VALUE);
-    sid_set_sustain(i, DEFAULT_SUSTAIN_VALUE);
-    sid_set_release(i, DEFAULT_RELEASE_VALUE);
+    sid_set_pulse_width(i, DEFAULT_PULSE_WIDTH);
+    sid_set_waveform(i, DEFAULT_WAVEFORM);
+    sid_set_attack(i, DEFAULT_ATTACK);
+    sid_set_decay(i, DEFAULT_DECAY);
+    sid_set_sustain(i, DEFAULT_SUSTAIN);
+    sid_set_release(i, DEFAULT_RELEASE);
   }
   sid_set_volume(15);
 
