@@ -1,5 +1,6 @@
 #include <math.h>
 #include <usbmidi.h>
+#include "util.h"
 
 const int ARDUINO_SID_CHIP_SELECT_PIN = 13; // D13
 const int ARDUINO_SID_MASTER_CLOCK_PIN = 5; // D5

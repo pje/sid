@@ -19,4 +19,7 @@ format:
 	# clang-format -i SID.ino
 	astyle --style=google --indent=spaces=2 SID.ino
 
-.PHONY: build check-board deps format upload verify
+test:
+	clang test/test_util.c -o test_util && ./test_util
+
+.PHONY: build check-board deps format test upload verify
