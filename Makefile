@@ -9,7 +9,10 @@ deps:
 check-board:
 	arduino-cli board list | grep "$(BOARD_PORT)"
 
-upload: check-board
+build:
+	arduino-cli compile --fqbn arduino:avr:micro --verbose SID.ino
+
+upload: check-board build
 	arduino-cli upload --port "$(BOARD_PORT)" --fqbn arduino:avr:micro --verbose SID.ino
 
 format:
@@ -21,4 +24,4 @@ test/runner: test/test.c
 test: test/runner
 	./test/runner
 
-.PHONY: check-board deps format test upload verify
+.PHONY: build check-board deps format test upload verify
