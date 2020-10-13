@@ -144,6 +144,46 @@ byte pw_v3_lsb = 0;
 word rpn_value = 0;
 word data_entry = 0;
 
+boolean fourth_voice_active = false;
+
+const double sid_attack_values_to_seconds[16] = {
+  0.002,
+  0.008,
+  0.016,
+  0.024,
+  0.038,
+  0.056,
+  0.068,
+  0.080,
+  0.100,
+  0.250,
+  0.500,
+  0.800,
+  1.000,
+  3.000,
+  5.000,
+  8.000
+};
+
+const double sid_decay_and_release_values_to_seconds[16] = {
+  0.006,
+  0.024,
+  0.048,
+  0.072,
+  0.114,
+  0.168,
+  0.204,
+  0.240,
+  0.300,
+  0.750,
+  1.500,
+  2.400,
+  3.000,
+  9.000,
+  15.00,
+  24.00
+};
+
 int num_presets = 0;
 
 const double MIDI_NOTES_TO_FREQUENCIES[96] = {
