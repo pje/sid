@@ -118,7 +118,7 @@ const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC        = 1;
 
 const byte MAX_POLYPHONY = 3;
 byte polyphony = 3;
-byte voice_notes[MAX_POLYPHONY];
+byte notes_playing[MAX_POLYPHONY];
 
 int midi_pitch_bend_max_semitones = 5;
 double current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
@@ -337,9 +337,9 @@ void start_clock() {
   TCCR3B |= (1 << CS30);
 }
 
-void nullify_voice_notes() {
+void nullify_notes_playing() {
   for (int i = 0; i < MAX_POLYPHONY; i++) {
-    voice_notes[i] = NULL;
+    notes_playing[i] = NULL;
   }
 }
 
@@ -448,7 +448,7 @@ void handle_message_voice_sync_change(byte voice, boolean on) {
 void handle_message_voice_detune_change(byte voice, double detune_factor) {
   voice_pitch_multiplier_factors[voice] = detune_factor;
   double semitone_change = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_pitch_multiplier_factors[voice] * voice_pitch_multiplier_max_factor);
-  double frequency = MIDI_NOTES_TO_FREQUENCIES[voice_notes[voice]] * pow(2, semitone_change / 12.0);
+  double frequency = MIDI_NOTES_TO_FREQUENCIES[notes_playing[voice]] * pow(2, semitone_change / 12.0);
   sid_set_voice_frequency(voice, (word)frequency);
 }
 
@@ -462,19 +462,19 @@ void handle_message_note_on(byte note_number, byte velocity) {
       sid_set_gate(i, false);
       sid_set_voice_frequency(i, (word)temp_double);
       sid_set_gate(i, true);
-      voice_notes[i] = note_number;
+      notes_playing[i] = note_number;
     }
   } else {  // we're poly, so every voice has to have its own frequency
     for (int i = 0; i < polyphony; i++) {
-      if (voice_notes[i] == NULL) {
-        voice_notes[i] = note_number;
+      if (notes_playing[i] == NULL) {
+        notes_playing[i] = note_number;
         note_voice = i;
         break;
       } else {
         if (i == (polyphony - 1)) {
-          voice_notes[0] = voice_notes[1];
-          voice_notes[1] = voice_notes[2];
-          voice_notes[2] = note_number;
+          notes_playing[0] = notes_playing[1];
+          notes_playing[1] = notes_playing[2];
+          notes_playing[2] = note_number;
           note_voice = i;
           break;
         }
@@ -490,8 +490,8 @@ void handle_message_note_on(byte note_number, byte velocity) {
 
 void handle_message_note_off(byte note_number, byte velocity) {
   for (int i = 0; i < MAX_POLYPHONY; i++) {
-    if (voice_notes[i] == note_number) {
-      voice_notes[i] = NULL;
+    if (notes_playing[i] == note_number) {
+      notes_playing[i] = NULL;
       sid_set_gate(i, false);
     }
   }
@@ -501,9 +501,9 @@ void handle_message_pitchbend_change(word pitchbend) {
   double temp_double = 0.0;
   current_pitchbend_amount = ((pitchbend / 8192.0) - 1); // 8192 is the "neutral" pitchbend value (half of 2**14)
   for (int i = 0; i < MAX_POLYPHONY; i++) {
-    if (voice_notes[i] != NULL) {
+    if (notes_playing[i] != NULL) {
       temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_pitch_multiplier_factors[i] * voice_pitch_multiplier_max_factor);
-      temp_double = MIDI_NOTES_TO_FREQUENCIES[voice_notes[i]] * pow(2, temp_double / 12.0);
+      temp_double = MIDI_NOTES_TO_FREQUENCIES[notes_playing[i]] * pow(2, temp_double / 12.0);
       sid_set_voice_frequency(i, (word)temp_double);
     }
   }
@@ -547,7 +547,7 @@ void setup() {
   // which seems to work ok
 
   polyphony = 3;
-  nullify_voice_notes();
+  nullify_notes_playing();
 
   start_clock();
 
