@@ -1,20 +1,22 @@
-#include <float.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <string.h>
-#include <math.h>
 #include "../util.h"
+#include <float.h>
+#include <math.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
 
 #define EPSILON 0.00001
 
-#define assert_float_eq(expected, actual) { \
-  double diff = fabs(expected - actual); \
-  if(diff > EPSILON) { \
-    printf("%s:%d in %s(): \n\tfailure: expected %lf, got %lf\n", __FILE__, __LINE__, __func__, expected, actual); \
-  } else { \
-    printf("."); \
-  } \
-}
+#define assert_float_eq(expected, actual)                                      \
+  {                                                                            \
+    double diff = fabs(expected - actual);                                     \
+    if (diff > EPSILON) {                                                      \
+      printf("%s:%d in %s(): \n\tfailure: expected %lf, got %lf\n", __FILE__,  \
+             __LINE__, __func__, expected, actual);                            \
+    } else {                                                                   \
+      printf(".");                                                             \
+    }                                                                          \
+  }
 
 int test_sine_waveform() {
   double result = sine_waveform(1.0, 0, 1.0, 0.0);
