@@ -2,6 +2,16 @@
 #include <usbmidi.h>
 #include "util.h"
 
+#define max(a,b) \
+  ({ __typeof__ (a) _a = (a); \
+      __typeof__ (b) _b = (b); \
+    _a > _b ? _a : _b; })
+
+#define min(a,b) \
+  ({ __typeof__ (a) _a = (a); \
+      __typeof__ (b) _b = (b); \
+    _a < _b ? _a : _b; })
+
 const int ARDUINO_SID_CHIP_SELECT_PIN = 13; // D13
 const int ARDUINO_SID_MASTER_CLOCK_PIN = 5; // D5
 
@@ -417,9 +427,9 @@ void sid_set_filter_frequency(word hertz) {
   sid_transfer(REGISTER_ADDRESS_FILTER_FREQUENCY_HI, hi);
 }
 
-void sid_set_filter_resonance(byte hertz) {
+void sid_set_filter_resonance(byte amount) {
   byte address = REGISTER_ADDRESS_FILTER_RESONANCE;
-  byte data = (sid_state_bytes[address] & B00001111) | (hertz << 4);
+  byte data = (sid_state_bytes[address] & B00001111) | (amount << 4);
   sid_transfer(address, data);
 }
 
@@ -951,8 +961,7 @@ void handle_midi_input(Stream *midi_port) {
           sid_set_filter_frequency(filter_frequency);
           break;
         case MIDI_CONTROL_CHANGE_SET_FILTER_RESONANCE:
-          controller_value >> 3;
-          sid_set_filter_resonance((byte)temp_double);
+          sid_set_filter_resonance(min(controller_value, 16));
           break;
 
         case MIDI_CONTROL_CHANGE_SET_VOLUME:
