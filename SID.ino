@@ -103,11 +103,12 @@ const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_TWO              = 72; // 7-bit 
 const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_THREE            = 80; // 7-bit value
 const byte MIDI_CONTROL_CHANGE_SET_VOLUME                        = 43; // 4-bit value
 
+const byte MIDI_CONTROL_CHANGE_TOGGLE_FOURTH_VOICE_MODE          = 81; // 1-bit value
+
 const byte MIDI_CONTROL_CHANGE_RPN_MSB                           = 101;
 const byte MIDI_CONTROL_CHANGE_RPN_LSB                           = 100;
 const byte MIDI_CONTROL_CHANGE_DATA_ENTRY                        = 6;
 const byte MIDI_CONTROL_CHANGE_DATA_ENTRY_FINE                   = 38;
-
 const word MIDI_RPN_PITCH_BEND_SENSITIVITY                       = 0;
 const word MIDI_RPN_MASTER_FINE_TUNING                           = 1;
 const word MIDI_RPN_MASTER_COARSE_TUNING                         = 2;
@@ -146,7 +147,7 @@ byte pw_v3_lsb = 0;
 word rpn_value = 0;
 word data_entry = 0;
 
-boolean fourth_voice_active = true;
+boolean volume_modulation_mode_active = false;
 
 const double sid_attack_values_to_seconds[16] = {
   0.002,
@@ -604,7 +605,7 @@ void handle_message_note_on(byte note_number, byte velocity) {
     for (int i = 0; i < MAX_POLYPHONY; i++ ) {
       temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
       temp_double = MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, temp_double / 12.0);
-      if (!fourth_voice_active) {
+      if (!volume_modulation_mode_active) {
         sid_set_gate(i, false);
         sid_set_voice_frequency(i, (word)temp_double);
         sid_set_gate(i, true);
@@ -636,7 +637,7 @@ void handle_message_note_on(byte note_number, byte velocity) {
     }
     temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[note_voice] * detune_max_semitones);
     temp_double = MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, temp_double / 12.0);
-    if (!fourth_voice_active) {
+    if (!volume_modulation_mode_active) {
       sid_set_gate(note_voice, false);
       sid_set_voice_frequency(note_voice, (word)temp_double);
       sid_set_gate(note_voice, true);
@@ -947,6 +948,10 @@ void handle_midi_input(Stream *midi_port) {
           }
           break;
 
+        case MIDI_CONTROL_CHANGE_TOGGLE_FOURTH_VOICE_MODE:
+          volume_modulation_mode_active = (controller_value == 127);
+          break;
+
         case 127:
           if (controller_value == 127) {
             handle_state_dump_request();
@@ -1021,7 +1026,7 @@ double get_release_seconds(unsigned int voice) {
 void loop () {
   long time_in_micros = micros();
 
-  if (fourth_voice_active && notes_playing[0] != NULL && ((time_in_micros - last_update) > update_every_micros)) {
+  if (volume_modulation_mode_active && notes_playing[0] != NULL && ((time_in_micros - last_update) > update_every_micros)) {
     double volume = 0;
     double yt = 0;
     double seconds = time_in_micros / 1000000.0;
