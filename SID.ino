@@ -26,7 +26,7 @@ const byte SID_RAMP          = B00100000;
 const byte SID_TRIANGLE      = B00010000;
 const byte SID_TEST          = B00001000;
 const byte SID_RING          = B00000100;
-const byte SID_SYNC          = B01000010;
+const byte SID_SYNC          = B00000010;
 const byte SID_3OFF          = B10000000;
 const byte SID_FILTER_HP     = B01000000;
 const byte SID_FILTER_BP     = B00100000;
@@ -120,6 +120,7 @@ const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC        = 1;
 const byte MAX_POLYPHONY = 3;
 byte polyphony = 3;
 byte notes_playing[MAX_POLYPHONY];
+long note_on_times[MAX_POLYPHONY];
 
 int midi_pitch_bend_max_semitones = 5;
 double current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
@@ -145,7 +146,7 @@ byte pw_v3_lsb = 0;
 word rpn_value = 0;
 word data_entry = 0;
 
-boolean fourth_voice_active = false;
+boolean fourth_voice_active = true;
 
 const double sid_attack_values_to_seconds[16] = {
   0.002,
@@ -350,6 +351,12 @@ void sid_set_ring_mod(int voice, boolean on) {
     }
     data = sid_state_bytes[address] & B11111011; // zero ring mod
   }
+  sid_transfer(address, data);
+}
+
+void sid_set_test(int voice, boolean on) {
+  byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_CONTROL;
+  byte data = (on ? (sid_state_bytes[address] | SID_TEST) : (sid_state_bytes[address] & B11111101));
   sid_transfer(address, data);
 }
 
@@ -597,15 +604,19 @@ void handle_message_note_on(byte note_number, byte velocity) {
     for (int i = 0; i < MAX_POLYPHONY; i++ ) {
       temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
       temp_double = MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, temp_double / 12.0);
-      sid_set_gate(i, false);
-      sid_set_voice_frequency(i, (word)temp_double);
-      sid_set_gate(i, true);
+      if (!fourth_voice_active) {
+        sid_set_gate(i, false);
+        sid_set_voice_frequency(i, (word)temp_double);
+        sid_set_gate(i, true);
+      }
       notes_playing[i] = note_number;
+      note_on_times[i] = micros();
     }
   } else {  // we're poly, so every voice has to have its own frequency
     for (int i = 0; i < polyphony; i++) {
       if (notes_playing[i] == NULL) {
         notes_playing[i] = note_number;
+        note_on_times[i] = micros();
         note_voice = i;
         break;
       } else {
@@ -613,6 +624,11 @@ void handle_message_note_on(byte note_number, byte velocity) {
           notes_playing[0] = notes_playing[1];
           notes_playing[1] = notes_playing[2];
           notes_playing[2] = note_number;
+
+          note_on_times[0] = note_on_times[1];
+          note_on_times[1] = note_on_times[2];
+          note_on_times[2] = micros();
+
           note_voice = i;
           break;
         }
@@ -620,9 +636,11 @@ void handle_message_note_on(byte note_number, byte velocity) {
     }
     temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[note_voice] * detune_max_semitones);
     temp_double = MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, temp_double / 12.0);
-    sid_set_gate(note_voice, false);
-    sid_set_voice_frequency(note_voice, (word)temp_double);
-    sid_set_gate(note_voice, true);
+    if (!fourth_voice_active) {
+      sid_set_gate(note_voice, false);
+      sid_set_voice_frequency(note_voice, (word)temp_double);
+      sid_set_gate(note_voice, true);
+    }
   }
 }
 
@@ -630,6 +648,7 @@ void handle_message_note_off(byte note_number, byte velocity) {
   for (int i = 0; i < MAX_POLYPHONY; i++) {
     if (notes_playing[i] == note_number) {
       notes_playing[i] = NULL;
+      note_on_times[i] = NULL;
       sid_set_gate(i, false);
     }
   }
@@ -693,7 +712,7 @@ void setup() {
   digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
 
   sid_zero_all_registers();
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < MAX_POLYPHONY; i++) {
     sid_set_pulse_width(i, DEFAULT_PULSE_WIDTH_VALUE);
     sid_set_waveform(i, DEFAULT_WAVEFORM_VALUE);
     sid_set_attack(i, DEFAULT_ATTACK_VALUE);
@@ -824,52 +843,40 @@ void handle_midi_input(Stream *midi_port) {
           break;
 
         case MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_ONE:
-          temp_double = (controller_value / 127.0) * 15.0;
-          handle_message_voice_attack_change(0, (byte)temp_double);
+          handle_message_voice_attack_change(0, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_TWO:
-          temp_double = (controller_value / 127.0) * 15.0;
-          handle_message_voice_attack_change(1, (byte)temp_double);
+          handle_message_voice_attack_change(1, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_THREE:
-          temp_double = (controller_value / 127.0) * 15.0;
-          handle_message_voice_attack_change(2, (byte)temp_double);
+          handle_message_voice_attack_change(2, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_ONE:
-          temp_double = (controller_value / 127.0) * 15.0;
-          handle_message_voice_decay_change(0, (byte)temp_double);
+          handle_message_voice_decay_change(0, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_TWO:
-          temp_double = (controller_value / 127.0) * 15.0;
-          handle_message_voice_decay_change(1, (byte)temp_double);
+          handle_message_voice_decay_change(1, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_THREE:
-          temp_double = (controller_value / 127.0) * 15.0;
-          handle_message_voice_decay_change(2, (byte)temp_double);
+          handle_message_voice_decay_change(2, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_ONE:
-          temp_double = (controller_value / 127.0) * 15.0;
-          handle_message_voice_sustain_change(0, (byte)temp_double);
+          handle_message_voice_sustain_change(0, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_TWO:
-          temp_double = (controller_value / 127.0) * 15.0;
-          handle_message_voice_sustain_change(1, (byte)temp_double);
+          handle_message_voice_sustain_change(1, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_THREE:
-          temp_double = (controller_value / 127.0) * 15.0;
-          handle_message_voice_sustain_change(2, (byte)temp_double);
+          handle_message_voice_sustain_change(2, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_ONE:
-          temp_double = (controller_value / 127.0) * 15.0;
-          handle_message_voice_release_change(0, (byte)temp_double);
+          handle_message_voice_release_change(0, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_TWO:
-          temp_double = (controller_value / 127.0) * 15.0;
-          handle_message_voice_release_change(1, (byte)temp_double);
+          handle_message_voice_release_change(1, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_THREE:
-          temp_double = (controller_value / 127.0) * 15.0;
-          handle_message_voice_release_change(2, (byte)temp_double);
+          handle_message_voice_release_change(2, controller_value >> 3);
           break;
 
         case MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_ONE:
@@ -910,7 +917,7 @@ void handle_midi_input(Stream *midi_port) {
           sid_set_filter_frequency((word)temp_double);
           break;
         case MIDI_CONTROL_CHANGE_SET_FILTER_RESONANCE:
-          temp_double = (controller_value / 127.0) * 15.0;
+          controller_value >> 3;
           sid_set_filter_resonance((byte)temp_double);
           break;
 
@@ -984,7 +991,70 @@ void handle_midi_input(Stream *midi_port) {
   }
 }
 
+long last_update = 0;
+const double update_every_micros = (100.0 / 4.41);
+
+byte lowNibble(byte b) { return(b & B00001111); }
+byte highNibble(byte b) { return((b & B11110000) >> 4); }
+
+double get_attack_seconds(unsigned int voice) {
+  byte value = highNibble(sid_state_bytes[(voice * 7) + REGISTER_BANK_OFFSET_VOICE_ENVELOPE_AD]);
+  return(sid_attack_values_to_seconds[value]);
+}
+
+double get_decay_seconds(unsigned int voice) {
+  byte value = lowNibble(sid_state_bytes[(voice * 7) + REGISTER_BANK_OFFSET_VOICE_ENVELOPE_AD]);
+  return(sid_decay_and_release_values_to_seconds[value]);
+}
+
+// returns float [0..1]
+double get_sustain_percent(unsigned int voice) {
+  byte value = highNibble(sid_state_bytes[(voice * 7) + REGISTER_BANK_OFFSET_VOICE_ENVELOPE_SR]);
+  return((double) value / 16.0);
+}
+
+double get_release_seconds(unsigned int voice) {
+  byte value = lowNibble(sid_state_bytes[(voice * 7) + REGISTER_BANK_OFFSET_VOICE_ENVELOPE_SR]);
+  return(sid_decay_and_release_values_to_seconds[value]);
+}
+
 void loop () {
+  long time_in_micros = micros();
+
+  if (fourth_voice_active && notes_playing[0] != NULL && ((time_in_micros - last_update) > update_every_micros)) {
+    double volume = 0;
+    double yt = 0;
+    double seconds = time_in_micros / 1000000.0;
+    int notes_playing_count = 0;
+    for (int i = 0; i < 3; i++) {
+      notes_playing[i] != NULL && notes_playing_count++;
+    }
+
+    for (int i = 0; i < notes_playing_count; i++) {
+      int note = notes_playing[i];
+
+      if (note != NULL) {
+        double yt = sine_waveform(MIDI_NOTES_TO_FREQUENCIES[note], seconds, 0.5, 0);
+        yt *= linear_envelope(
+          get_attack_seconds(i),
+          get_decay_seconds(i),
+          get_sustain_percent(i),
+          get_release_seconds(i),
+          (time_in_micros - note_on_times[i]) / 1000000.0,
+          -1
+        );
+
+        volume += (((yt + 0.5) * 15) / notes_playing_count);
+        // `+ 0.5` // center around 0
+        // `* 15`  // expand to [0..15]
+        // `/ 3`   // make room for potentially summing three voices together
+      }
+    }
+
+    sid_set_volume((byte)volume);
+    last_update = micros();
+  }
+
   USBMIDI.poll();
 
   handle_midi_input(&USBMIDI);
