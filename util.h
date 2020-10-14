@@ -1,6 +1,7 @@
 #include <math.h>
 
 typedef unsigned char byte;
+typedef unsigned int word;
 
 // y(t) = A * sin(2πft + φ)
 //
