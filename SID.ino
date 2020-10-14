@@ -30,34 +30,34 @@ const byte SID_REGISTER_ADDRESS_FILTER_FREQUENCY_HI      = 22;
 const byte SID_REGISTER_ADDRESS_FILTER_RESONANCE         = 23;
 const byte SID_REGISTER_ADDRESS_FILTER_MODE_VOLUME       = 24;
 
-const byte SID_NOISE         = B10000000;
-const byte SID_SQUARE        = B01000000;
-const byte SID_RAMP          = B00100000;
-const byte SID_TRIANGLE      = B00010000;
-const byte SID_TEST          = B00001000;
-const byte SID_RING          = B00000100;
-const byte SID_SYNC          = B00000010;
-const byte SID_3OFF          = B10000000;
-const byte SID_FILTER_HP     = B01000000;
-const byte SID_FILTER_BP     = B00100000;
-const byte SID_FILTER_LP     = B00010000;
-const byte SID_FILTER_OFF    = B00000000;
-const byte SID_FILTER_VOICE1 = B00000001;
-const byte SID_FILTER_VOICE2 = B00000010;
-const byte SID_FILTER_VOICE3 = B00000100;
-const byte SID_FILTER_EXT    = B00001000;
+const byte SID_NOISE         = 0B10000000;
+const byte SID_SQUARE        = 0B01000000;
+const byte SID_RAMP          = 0B00100000;
+const byte SID_TRIANGLE      = 0B00010000;
+const byte SID_TEST          = 0B00001000;
+const byte SID_RING          = 0B00000100;
+const byte SID_SYNC          = 0B00000010;
+const byte SID_3OFF          = 0B10000000;
+const byte SID_FILTER_HP     = 0B01000000;
+const byte SID_FILTER_BP     = 0B00100000;
+const byte SID_FILTER_LP     = 0B00010000;
+const byte SID_FILTER_OFF    = 0B00000000;
+const byte SID_FILTER_VOICE1 = 0B00000001;
+const byte SID_FILTER_VOICE2 = 0B00000010;
+const byte SID_FILTER_VOICE3 = 0B00000100;
+const byte SID_FILTER_EXT    = 0B00001000;
 
 // since we have to set all the bits in a register byte at once,
 // we must maintain a copy of the register's state so we don't clobber bits
 // (SID actually has 28 registers but we don't use the last 4. hence 25)
 byte sid_state_bytes[25] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
-const byte MIDI_NOTE_ON        = B1001;
-const byte MIDI_NOTE_OFF       = B1000;
-const byte MIDI_PITCH_BEND     = B1110;
-const byte MIDI_CONTROL_CHANGE = B1011;
-const byte MIDI_PROGRAM_CHANGE = B1100;
-const byte MIDI_TIMING_CLOCK   = B11111000;
+const byte MIDI_NOTE_ON        = 0B1001;
+const byte MIDI_NOTE_OFF       = 0B1000;
+const byte MIDI_PITCH_BEND     = 0B1110;
+const byte MIDI_CONTROL_CHANGE = 0B1011;
+const byte MIDI_PROGRAM_CHANGE = 0B1100;
+const byte MIDI_TIMING_CLOCK   = 0B11111000;
 
 const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_TRIANGLE   = 12; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_RAMP       = 13; // 1-bit value
@@ -314,7 +314,7 @@ const double MIDI_NOTES_TO_FREQUENCIES[96] = {
 };
 
 void sid_transfer(byte address, byte data) {
-  address &= B00011111;
+  address &= 0B00011111;
 
   // PORTF is a weird 6-bit register (8 bits, but bits 2 and 3 don't exist)
   //
@@ -324,18 +324,18 @@ void sid_transfer(byte address, byte data) {
   //
   // addr -    A4   A3   A2   -    -    A1   A0
 
-  PORTF = ((address << 2) & B01110000) | (address & B00000011);
+  PORTF = ((address << 2) & 0B01110000) | (address & 0B00000011);
   PORTB = data;
   digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, LOW);
-  // PORTC &= B01111111; // faster version of digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, LOW);
+  // PORTC &= 0B01111111; // faster version of digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, LOW);
   digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
   sid_state_bytes[address] = data;
-  // PORTC |= B10000000; // faster version of digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
+  // PORTC |= 0B10000000; // faster version of digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
 }
 
 void sid_zero_all_registers() {
   for (byte i = 0; i < 25; i++) {
-    sid_transfer(i, B00000000);
+    sid_transfer(i, 0B00000000);
   }
 }
 
@@ -349,13 +349,13 @@ void sid_zero_voice_registers(int voice) {
 
 void sid_set_volume(byte level) {
   byte address = SID_REGISTER_ADDRESS_FILTER_MODE_VOLUME;
-  byte data = (sid_state_bytes[address] & B11110000) | (level & B00001111);
+  byte data = (sid_state_bytes[address] & 0B11110000) | (level & 0B00001111);
   sid_transfer(address, data);
 }
 
 void sid_set_waveform(int voice, byte waveform) {
   byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL;
-  byte data = (waveform | (sid_state_bytes[address] & B00001111));
+  byte data = (waveform | (sid_state_bytes[address] & 0B00001111));
   sid_transfer(address, data);
 }
 
@@ -364,7 +364,7 @@ void sid_set_ring_mod(int voice, boolean on) {
   byte data;
   if (on) {
     // ring mod repurposes the output of the triangle oscillator
-    data = sid_state_bytes[address] | B00010100; // set triangle and ring mod bits, leave others as-is
+    data = sid_state_bytes[address] | 0B00010100; // set triangle and ring mod bits, leave others as-is
   } else {
     if (((sid_state_bytes[address] >> 7) & 0B00000001) == 1) {
       sid_set_waveform(voice, SID_NOISE);
@@ -375,7 +375,7 @@ void sid_set_ring_mod(int voice, boolean on) {
     } else {
       sid_set_waveform(voice, SID_TRIANGLE);
     }
-    data = sid_state_bytes[address] & B11111011; // zero ring mod
+    data = sid_state_bytes[address] & 0B11111011; // zero ring mod
   }
   sid_transfer(address, data);
 }
@@ -394,35 +394,35 @@ void sid_set_sync(int voice, boolean on) {
 
 void sid_set_attack(int voice, byte attack) {
   byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_AD;
-  byte data = sid_state_bytes[address] & B00001111;
+  byte data = sid_state_bytes[address] & 0B00001111;
   data |= (attack << 4);
   sid_transfer(address, data);
 }
 
 void sid_set_decay(int voice, byte decay) {
   byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_AD;
-  byte data = sid_state_bytes[address] & B11110000;
-  data |= (decay & B00001111);
+  byte data = sid_state_bytes[address] & 0B11110000;
+  data |= (decay & 0B00001111);
   sid_transfer(address, data);
 }
 
 void sid_set_sustain(int voice, byte sustain) {
   byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_SR;
-  byte data = sid_state_bytes[address] & B00001111;
+  byte data = sid_state_bytes[address] & 0B00001111;
   data |= (sustain << 4);
   sid_transfer(address, data);
 }
 
 void sid_set_release(int voice, byte release) {
   byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_SR;
-  byte data = sid_state_bytes[address] & B11110000;
-  data |= (release & B00001111);
+  byte data = sid_state_bytes[address] & 0B11110000;
+  data |= (release & 0B00001111);
   sid_transfer(address, data);
 }
 
 void sid_set_pulse_width(byte voice, word hertz) { // 12-bit value
   byte lo = lowByte(hertz);
-  byte hi = highByte(hertz) & B00001111;
+  byte hi = highByte(hertz) & 0B00001111;
   byte address_lo = (voice * 7) + SID_REGISTER_OFFSET_VOICE_PULSE_WIDTH_LO;
   byte address_hi = (voice * 7) + SID_REGISTER_OFFSET_VOICE_PULSE_WIDTH_HI;
   sid_transfer(address_lo, lo);
@@ -430,7 +430,7 @@ void sid_set_pulse_width(byte voice, word hertz) { // 12-bit value
 }
 
 void sid_set_filter_frequency(word hertz) {
-  byte lo = lowByte(hertz) & B00000111;
+  byte lo = lowByte(hertz) & 0B00000111;
   byte hi = highByte(hertz << 5);
   sid_transfer(SID_REGISTER_ADDRESS_FILTER_FREQUENCY_LO, lo);
   sid_transfer(SID_REGISTER_ADDRESS_FILTER_FREQUENCY_HI, hi);
@@ -438,7 +438,7 @@ void sid_set_filter_frequency(word hertz) {
 
 void sid_set_filter_resonance(byte amount) {
   byte address = SID_REGISTER_ADDRESS_FILTER_RESONANCE;
-  byte data = (sid_state_bytes[address] & B00001111) | (amount << 4);
+  byte data = (sid_state_bytes[address] & 0B00001111) | (amount << 4);
   sid_transfer(address, data);
 }
 
@@ -463,9 +463,9 @@ void sid_set_filter(byte voice, boolean on) {
 
 // filter modes are additive (e.g. you can set LP & HP simultaneously)
 //
-// const byte SID_FILTER_HP     = B01000000;
-// const byte SID_FILTER_BP     = B00100000;
-// const byte SID_FILTER_LP     = B00010000;
+// const byte SID_FILTER_HP     = 0B01000000;
+// const byte SID_FILTER_BP     = 0B00100000;
+// const byte SID_FILTER_LP     = 0B00010000;
 void sid_set_filter_mode(byte mode, boolean on) {
   byte address = SID_REGISTER_ADDRESS_FILTER_MODE_VOLUME;
   byte data = sid_state_bytes[address];
@@ -491,9 +491,9 @@ void sid_set_gate(int voice, boolean state) {
   byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL;
   byte data;
   if (state) {
-    data = sid_state_bytes[address] | B00000001;
+    data = sid_state_bytes[address] | 0B00000001;
   } else {
-    data = sid_state_bytes[address] & B11111110;
+    data = sid_state_bytes[address] & 0B11111110;
   }
   sid_transfer(address, data);
 }
@@ -738,8 +738,8 @@ void setup() {
   // without this the micro locks up on startup and requires a
   // reset button push? (only when not connected to USB), which is the use-case
 
-  DDRF = B01110011; // initialize 5 PORTF pins as output (connected to A0-A4)
-  DDRB = B11111111; // initialize 8 PORTB pins as output (connected to D0-D7)
+  DDRF = 0B01110011; // initialize 5 PORTF pins as output (connected to A0-A4)
+  DDRB = 0B11111111; // initialize 8 PORTB pins as output (connected to D0-D7)
   // technically SID allows us to read from its last 4 registers, but we don't
   // need to, so we just always keep SID's R/W pin low (signifying "write"),
   // which seems to work ok
@@ -770,7 +770,7 @@ void handle_midi_input(Stream *midi_port) {
   if (midi_port->available() > 0) {
     byte incomingByte = midi_port->read();
     byte opcode  = incomingByte >> 4;
-    byte channel = incomingByte & (B00001111);
+    byte channel = incomingByte & (0B00001111);
     byte data_byte_one = 0;
     byte data_byte_two = 0;
     int note_voice = 0;
@@ -778,7 +778,7 @@ void handle_midi_input(Stream *midi_port) {
     byte controller_number = 0;
     byte controller_value = 0;
 
-    if (channel == MIDI_CHANNEL && opcode >= B1000 && opcode <= B1110) { // Voice/Mode Messages, on our channel
+    if (channel == MIDI_CHANNEL && opcode >= 0B1000 && opcode <= 0B1110) { // Voice/Mode Messages, on our channel
       switch (opcode) {
       case MIDI_CONTROL_CHANGE:
         while (midi_port->available() <= 0) {}
