@@ -1,5 +1,7 @@
 #include <math.h>
 
+typedef unsigned char byte;
+
 // y(t) = A * sin(2πft + φ)
 //
 // returns a double between `-amplitude` and `amplitude`
@@ -20,3 +22,6 @@ double linear_envelope(double a, double d, double s, double r, double seconds, d
     return(s);
   }
 }
+
+byte lowNibble(byte b) { return(b & 0B00001111); }
+byte highNibble(byte b) { return((b & 0B11110000) >> 4); }

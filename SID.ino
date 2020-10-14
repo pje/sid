@@ -136,6 +136,7 @@ const byte MAX_POLYPHONY = 3;
 byte polyphony = 3;
 byte notes_playing[MAX_POLYPHONY];
 long note_on_times[MAX_POLYPHONY];
+long note_off_times[MAX_POLYPHONY];
 
 int midi_pitch_bend_max_semitones = 5;
 double current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
@@ -683,12 +684,10 @@ void handle_message_note_on(byte note_number, byte velocity) {
 void handle_message_note_off(byte note_number, byte velocity) {
   for (int i = 0; i < MAX_POLYPHONY; i++) {
     if (notes_playing[i] == note_number) {
+      sid_set_gate(i, false);
       notes_playing[i] = NULL;
       note_on_times[i] = NULL;
-      sid_set_voice_frequency(i, 0);
-      sid_set_gate(i, false);
-      // as a workaround to leakage, iff release is done, we can set the voice
-      // frequency to 0 now
+      note_off_times[i] = micros();
     }
   }
 }
@@ -1052,9 +1051,6 @@ void handle_midi_input(Stream *midi_port) {
 long last_update = 0;
 const double update_every_micros = (100.0 / 4.41);
 
-byte lowNibble(byte b) { return(b & B00001111); }
-byte highNibble(byte b) { return((b & B11110000) >> 4); }
-
 double get_attack_seconds(unsigned int voice) {
   byte value = highNibble(sid_state_bytes[(voice * 7) + REGISTER_BANK_OFFSET_VOICE_ENVELOPE_AD]);
   return(sid_attack_values_to_seconds[value]);
@@ -1079,6 +1075,22 @@ double get_release_seconds(unsigned int voice) {
 void loop () {
   long time_in_micros = micros();
 
+  // SID has a bug where its oscillators sometimes "leak" the sound of previous
+  // notes. To work around this, we have to set each oscillator's frequency to 0
+  // only when we are certain it's past its ADSR time.
+  for (int i; i < 3; i++) {
+    if (
+        notes_playing[i] == NULL &&  // voice is in its "note off" phase
+        note_off_times[i] != NULL && // we'd have set this to NULL if its release phase were over
+        (time_in_micros > (note_off_times[i] + get_release_seconds(i) / 1000000.0)) // we're past the release phase, so the voice can't be making any noise, so we must "fully" silence it
+      ) {
+      sid_set_voice_frequency(i, 0);
+      note_off_times[i] = NULL;
+    }
+  }
+
+  // if any notes are playing in `volume_modulation_mode`, we have to implement
+  // ADSR stuff on our own.
   if (volume_modulation_mode_active && notes_playing[0] != NULL && ((time_in_micros - last_update) > update_every_micros)) {
     double volume = 0;
     double yt = 0;
