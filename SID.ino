@@ -133,9 +133,9 @@ const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC        = 1;
 
 const byte MAX_POLYPHONY = 3;
 byte polyphony = 3;
-byte notes_playing[MAX_POLYPHONY];
-long note_on_times[MAX_POLYPHONY];
-long note_off_times[MAX_POLYPHONY];
+byte notes_playing[MAX_POLYPHONY]  = { 0, 0, 0 }; // '0' represents empty.
+long note_on_times[MAX_POLYPHONY]  = { 0, 0, 0 }; // '0' represents empty.
+long note_off_times[MAX_POLYPHONY] = { 0, 0, 0 }; // '0' represents empty.
 
 int midi_pitch_bend_max_semitones = 5;
 double current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
@@ -514,7 +514,7 @@ void start_clock() {
 
 void nullify_notes_playing() {
   for (int i = 0; i < MAX_POLYPHONY; i++) {
-    notes_playing[i] = NULL;
+    notes_playing[i] = 0;
   }
 }
 
@@ -654,7 +654,7 @@ void handle_message_note_on(byte note_number, byte velocity) {
     }
   } else {  // we're poly, so every voice has to have its own frequency
     for (int i = 0; i < polyphony; i++) {
-      if (notes_playing[i] == NULL) {
+      if (notes_playing[i] == 0) {
         notes_playing[i] = note_number;
         note_on_times[i] = micros();
         note_voice = i;
@@ -688,8 +688,8 @@ void handle_message_note_off(byte note_number, byte velocity) {
   for (int i = 0; i < MAX_POLYPHONY; i++) {
     if (notes_playing[i] == note_number) {
       sid_set_gate(i, false);
-      notes_playing[i] = NULL;
-      note_on_times[i] = NULL;
+      notes_playing[i] = 0;
+      note_on_times[i] = 0;
       note_off_times[i] = micros();
     }
   }
@@ -699,7 +699,7 @@ void handle_message_pitchbend_change(word pitchbend) {
   double temp_double = 0.0;
   current_pitchbend_amount = ((pitchbend / 8192.0) - 1); // 8192 is the "neutral" pitchbend value (half of 2**14)
   for (int i = 0; i < MAX_POLYPHONY; i++) {
-    if (notes_playing[i] != NULL) {
+    if (notes_playing[i] != 0) {
       temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
       temp_double = MIDI_NOTES_TO_FREQUENCIES[notes_playing[i]] * pow(2, temp_double / 12.0);
       sid_set_voice_frequency(i, temp_double);
@@ -734,10 +734,6 @@ void handle_state_dump_request() {
 }
 
 void setup() {
-  delay(1000);
-  // without this the micro locks up on startup and requires a
-  // reset button push? (only when not connected to USB), which is the use-case
-
   DDRF = 0B01110011; // initialize 5 PORTF pins as output (connected to A0-A4)
   DDRB = 0B11111111; // initialize 8 PORTB pins as output (connected to D0-D7)
   // technically SID allows us to read from its last 4 registers, but we don't
@@ -1059,37 +1055,37 @@ double get_release_seconds(unsigned int voice) {
 
 void loop () {
   long time_in_micros = micros();
+  double time_in_seconds = time_in_micros / 1000000.0;
 
   // SID has a bug where its oscillators sometimes "leak" the sound of previous
   // notes. To work around this, we have to set each oscillator's frequency to 0
   // only when we are certain it's past its ADSR time.
-  for (int i; i < 3; i++) {
+  for (int i = 0; i < 3; i++) {
     if (
-        notes_playing[i] == NULL &&  // voice is in its "note off" phase
-        note_off_times[i] != NULL && // we'd have set this to NULL if its release phase were over
-        (time_in_micros > (note_off_times[i] + get_release_seconds(i) / 1000000.0)) // we're past the release phase, so the voice can't be making any noise, so we must "fully" silence it
+        notes_playing[i] == 0 &&
+        note_off_times[i] > 0 && // `0` represents "nothing", i.e. "past release phase". I hate it too
+        (time_in_micros > (note_off_times[i] + get_release_seconds(i) * 1000000.0)) // we're past the release phase, so the voice can't be making any noise, so we must "fully" silence it
       ) {
       sid_set_voice_frequency(i, 0);
-      note_off_times[i] = NULL;
+      note_off_times[i] = 0;
     }
   }
 
   // if any notes are playing in `volume_modulation_mode`, we have to implement
   // ADSR stuff on our own.
-  if (volume_modulation_mode_active && notes_playing[0] != NULL && ((time_in_micros - last_update) > update_every_micros)) {
+  if (volume_modulation_mode_active && notes_playing[0] != 0 && ((time_in_micros - last_update) > update_every_micros)) {
     double volume = 0;
     double yt = 0;
-    double seconds = time_in_micros / 1000000.0;
     int notes_playing_count = 0;
     for (int i = 0; i < 3; i++) {
-      notes_playing[i] != NULL && notes_playing_count++;
+      notes_playing[i] != 0 && notes_playing_count++;
     }
 
     for (int i = 0; i < notes_playing_count; i++) {
       int note = notes_playing[i];
 
-      if (note != NULL) {
-        double yt = sine_waveform(MIDI_NOTES_TO_FREQUENCIES[note], seconds, 0.5, 0);
+      if (note != 0) {
+        double yt = sine_waveform(MIDI_NOTES_TO_FREQUENCIES[note], time_in_seconds, 0.5, 0);
         yt *= linear_envelope(
           get_attack_seconds(i),
           get_decay_seconds(i),
