@@ -17,18 +17,18 @@ const int ARDUINO_SID_MASTER_CLOCK_PIN = 5; // D5
 
 const double CLOCK_SIGNAL_FACTOR = 0.0596;
 
-const byte REGISTER_BANK_OFFSET_VOICE_FREQUENCY_LO   = 0;
-const byte REGISTER_BANK_OFFSET_VOICE_FREQUENCY_HI   = 1;
-const byte REGISTER_BANK_OFFSET_VOICE_PULSE_WIDTH_LO = 2;
-const byte REGISTER_BANK_OFFSET_VOICE_PULSE_WIDTH_HI = 3;
-const byte REGISTER_BANK_OFFSET_VOICE_CONTROL        = 4;
-const byte REGISTER_BANK_OFFSET_VOICE_ENVELOPE_AD    = 5;
-const byte REGISTER_BANK_OFFSET_VOICE_ENVELOPE_SR    = 6;
+const byte SID_REGISTER_OFFSET_VOICE_FREQUENCY_LO   = 0;
+const byte SID_REGISTER_OFFSET_VOICE_FREQUENCY_HI   = 1;
+const byte SID_REGISTER_OFFSET_VOICE_PULSE_WIDTH_LO = 2;
+const byte SID_REGISTER_OFFSET_VOICE_PULSE_WIDTH_HI = 3;
+const byte SID_REGISTER_OFFSET_VOICE_CONTROL        = 4;
+const byte SID_REGISTER_OFFSET_VOICE_ENVELOPE_AD    = 5;
+const byte SID_REGISTER_OFFSET_VOICE_ENVELOPE_SR    = 6;
 
-const byte REGISTER_ADDRESS_FILTER_FREQUENCY_LO      = 21;
-const byte REGISTER_ADDRESS_FILTER_FREQUENCY_HI      = 22;
-const byte REGISTER_ADDRESS_FILTER_RESONANCE         = 23;
-const byte REGISTER_ADDRESS_FILTER_MODE_VOLUME       = 24;
+const byte SID_REGISTER_ADDRESS_FILTER_FREQUENCY_LO      = 21;
+const byte SID_REGISTER_ADDRESS_FILTER_FREQUENCY_HI      = 22;
+const byte SID_REGISTER_ADDRESS_FILTER_RESONANCE         = 23;
+const byte SID_REGISTER_ADDRESS_FILTER_MODE_VOLUME       = 24;
 
 const byte SID_NOISE         = B10000000;
 const byte SID_SQUARE        = B01000000;
@@ -58,7 +58,6 @@ const byte MIDI_PITCH_BEND     = B1110;
 const byte MIDI_CONTROL_CHANGE = B1011;
 const byte MIDI_PROGRAM_CHANGE = B1100;
 const byte MIDI_TIMING_CLOCK   = B11111000;
-const byte MIDI_CONTROL_CHANGE_BANK_SELECT = B00000000;
 
 const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_TRIANGLE   = 12; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_RAMP       = 13; // 1-bit value
@@ -211,8 +210,6 @@ const double sid_decay_and_release_values_to_seconds[16] = {
   24.00
 };
 
-int num_presets = 0;
-
 // there's apparently not widespread agreement on which frequency midi notes
 // represent. What we have below is "scientific pitch notation". Ableton, maxmsp
 // and garageband use C3, which is shifted an octave lower.
@@ -351,19 +348,19 @@ void sid_zero_voice_registers(int voice) {
 }
 
 void sid_set_volume(byte level) {
-  byte address = REGISTER_ADDRESS_FILTER_MODE_VOLUME;
+  byte address = SID_REGISTER_ADDRESS_FILTER_MODE_VOLUME;
   byte data = (sid_state_bytes[address] & B11110000) | (level & B00001111);
   sid_transfer(address, data);
 }
 
 void sid_set_waveform(int voice, byte waveform) {
-  byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_CONTROL;
+  byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL;
   byte data = (waveform | (sid_state_bytes[address] & B00001111));
   sid_transfer(address, data);
 }
 
 void sid_set_ring_mod(int voice, boolean on) {
-  byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_CONTROL;
+  byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL;
   byte data;
   if (on) {
     // ring mod repurposes the output of the triangle oscillator
@@ -384,40 +381,40 @@ void sid_set_ring_mod(int voice, boolean on) {
 }
 
 void sid_set_test(int voice, boolean on) {
-  byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_CONTROL;
+  byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL;
   byte data = (on ? (sid_state_bytes[address] | SID_TEST) : (sid_state_bytes[address] & ~SID_TEST));
   sid_transfer(address, data);
 }
 
 void sid_set_sync(int voice, boolean on) {
-  byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_CONTROL;
+  byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL;
   byte data = (on ? (sid_state_bytes[address] | SID_SYNC) : (sid_state_bytes[address] & ~SID_SYNC));
   sid_transfer(address, data);
 }
 
 void sid_set_attack(int voice, byte attack) {
-  byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_ENVELOPE_AD;
+  byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_AD;
   byte data = sid_state_bytes[address] & B00001111;
   data |= (attack << 4);
   sid_transfer(address, data);
 }
 
 void sid_set_decay(int voice, byte decay) {
-  byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_ENVELOPE_AD;
+  byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_AD;
   byte data = sid_state_bytes[address] & B11110000;
   data |= (decay & B00001111);
   sid_transfer(address, data);
 }
 
 void sid_set_sustain(int voice, byte sustain) {
-  byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_ENVELOPE_SR;
+  byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_SR;
   byte data = sid_state_bytes[address] & B00001111;
   data |= (sustain << 4);
   sid_transfer(address, data);
 }
 
 void sid_set_release(int voice, byte release) {
-  byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_ENVELOPE_SR;
+  byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_SR;
   byte data = sid_state_bytes[address] & B11110000;
   data |= (release & B00001111);
   sid_transfer(address, data);
@@ -426,8 +423,8 @@ void sid_set_release(int voice, byte release) {
 void sid_set_pulse_width(byte voice, word hertz) { // 12-bit value
   byte lo = lowByte(hertz);
   byte hi = highByte(hertz) & B00001111;
-  byte address_lo = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_PULSE_WIDTH_LO;
-  byte address_hi = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_PULSE_WIDTH_HI;
+  byte address_lo = (voice * 7) + SID_REGISTER_OFFSET_VOICE_PULSE_WIDTH_LO;
+  byte address_hi = (voice * 7) + SID_REGISTER_OFFSET_VOICE_PULSE_WIDTH_HI;
   sid_transfer(address_lo, lo);
   sid_transfer(address_hi, hi);
 }
@@ -435,18 +432,18 @@ void sid_set_pulse_width(byte voice, word hertz) { // 12-bit value
 void sid_set_filter_frequency(word hertz) {
   byte lo = lowByte(hertz) & B00000111;
   byte hi = highByte(hertz << 5);
-  sid_transfer(REGISTER_ADDRESS_FILTER_FREQUENCY_LO, lo);
-  sid_transfer(REGISTER_ADDRESS_FILTER_FREQUENCY_HI, hi);
+  sid_transfer(SID_REGISTER_ADDRESS_FILTER_FREQUENCY_LO, lo);
+  sid_transfer(SID_REGISTER_ADDRESS_FILTER_FREQUENCY_HI, hi);
 }
 
 void sid_set_filter_resonance(byte amount) {
-  byte address = REGISTER_ADDRESS_FILTER_RESONANCE;
+  byte address = SID_REGISTER_ADDRESS_FILTER_RESONANCE;
   byte data = (sid_state_bytes[address] & B00001111) | (amount << 4);
   sid_transfer(address, data);
 }
 
 void sid_set_filter(byte voice, boolean on) {
-  byte address = REGISTER_ADDRESS_FILTER_RESONANCE;
+  byte address = SID_REGISTER_ADDRESS_FILTER_RESONANCE;
   byte data;
   byte voice_filter_mask;
   if (voice == 0) {
@@ -470,7 +467,7 @@ void sid_set_filter(byte voice, boolean on) {
 // const byte SID_FILTER_BP     = B00100000;
 // const byte SID_FILTER_LP     = B00010000;
 void sid_set_filter_mode(byte mode, boolean on) {
-  byte address = REGISTER_ADDRESS_FILTER_MODE_VOLUME;
+  byte address = SID_REGISTER_ADDRESS_FILTER_MODE_VOLUME;
   byte data = sid_state_bytes[address];
   if (on) {
     data |= mode;
@@ -484,14 +481,14 @@ void sid_set_voice_frequency(int voice, double hertz) {
   word frequency = (hertz / CLOCK_SIGNAL_FACTOR);
   byte loFrequency = lowByte(frequency);
   byte hiFrequency = highByte(frequency);
-  byte loAddress = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_FREQUENCY_LO;
-  byte hiAddress = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_FREQUENCY_HI;
+  byte loAddress = (voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_LO;
+  byte hiAddress = (voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_HI;
   sid_transfer(loAddress, loFrequency);
   sid_transfer(hiAddress, hiFrequency);
 }
 
 void sid_set_gate(int voice, boolean state) {
-  byte address = (voice * 7) + REGISTER_BANK_OFFSET_VOICE_CONTROL;
+  byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL;
   byte data;
   if (state) {
     data = sid_state_bytes[address] | B00000001;
@@ -718,11 +715,6 @@ void handle_message_program_change(byte program_number) {
   case MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC:
     polyphony = 1;
     break;
-  }
-}
-
-void handle_message_bank_select(byte bank_number) {
-  if (bank_number <= num_presets) {
   }
 }
 
@@ -980,10 +972,6 @@ void handle_midi_input(Stream *midi_port) {
           sid_set_volume(controller_value >> 3);
           break;
 
-        case MIDI_CONTROL_CHANGE_BANK_SELECT:
-          handle_message_bank_select(controller_value);
-          break;
-
         case MIDI_CONTROL_CHANGE_RPN_LSB:
           rpn_value += (controller_value & 0b01111111);
           break;
@@ -1049,23 +1037,23 @@ void handle_midi_input(Stream *midi_port) {
 }
 
 double get_attack_seconds(unsigned int voice) {
-  byte value = highNibble(sid_state_bytes[(voice * 7) + REGISTER_BANK_OFFSET_VOICE_ENVELOPE_AD]);
+  byte value = highNibble(sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_AD]);
   return(sid_attack_values_to_seconds[value]);
 }
 
 double get_decay_seconds(unsigned int voice) {
-  byte value = lowNibble(sid_state_bytes[(voice * 7) + REGISTER_BANK_OFFSET_VOICE_ENVELOPE_AD]);
+  byte value = lowNibble(sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_AD]);
   return(sid_decay_and_release_values_to_seconds[value]);
 }
 
 // returns float [0..1]
 double get_sustain_percent(unsigned int voice) {
-  byte value = highNibble(sid_state_bytes[(voice * 7) + REGISTER_BANK_OFFSET_VOICE_ENVELOPE_SR]);
+  byte value = highNibble(sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_SR]);
   return((double) value / 16.0);
 }
 
 double get_release_seconds(unsigned int voice) {
-  byte value = lowNibble(sid_state_bytes[(voice * 7) + REGISTER_BANK_OFFSET_VOICE_ENVELOPE_SR]);
+  byte value = lowNibble(sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_SR]);
   return(sid_decay_and_release_values_to_seconds[value]);
 }
 
