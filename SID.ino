@@ -165,7 +165,13 @@ byte filter_frequency_lsb = 0;
 word rpn_value = 0;
 word data_entry = 0;
 
+// You know that click when we change the SID's volume? Turns out if we modulate
+// that click we can generate arbitrary 4-bit wveforms including sine waves and
+// sample playback. (Currently this mode just means "4-bit sine")
 boolean volume_modulation_mode_active = false;
+
+long last_update = 0;
+const double update_every_micros = (100.0 / 4.41);
 
 const double sid_attack_values_to_seconds[16] = {
   0.002,
@@ -779,7 +785,6 @@ void handle_midi_input(Stream *midi_port) {
     word pitchbend = 8192.0;
     byte controller_number = 0;
     byte controller_value = 0;
-    double temp_double = 0.0;
 
     if (channel == MIDI_CHANNEL && opcode >= B1000 && opcode <= B1110) { // Voice/Mode Messages, on our channel
       switch (opcode) {
@@ -939,16 +944,13 @@ void handle_midi_input(Stream *midi_port) {
           break;
 
         case MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_ONE:
-          temp_double = ((controller_value / 64.0) - 1);
-          handle_message_voice_detune_change(0, temp_double);
+          handle_message_voice_detune_change(0, ((controller_value / 64.0) - 1));
           break;
         case MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_TWO:
-          temp_double = ((controller_value / 64.0) - 1);
-          handle_message_voice_detune_change(1, temp_double);
+          handle_message_voice_detune_change(1, ((controller_value / 64.0) - 1));
           break;
         case MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_THREE:
-          temp_double = ((controller_value / 64.0) - 1);
-          handle_message_voice_detune_change(2, temp_double);
+          handle_message_voice_detune_change(2, ((controller_value / 64.0) - 1));
           break;
 
         case MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_LP:
@@ -975,8 +977,7 @@ void handle_midi_input(Stream *midi_port) {
           break;
 
         case MIDI_CONTROL_CHANGE_SET_VOLUME:
-          temp_double = (controller_value / 127.0) * 15;
-          sid_set_volume((word)temp_double);
+          sid_set_volume(controller_value >> 3);
           break;
 
         case MIDI_CONTROL_CHANGE_BANK_SELECT:
@@ -988,8 +989,7 @@ void handle_midi_input(Stream *midi_port) {
           break;
 
         case MIDI_CONTROL_CHANGE_RPN_MSB:
-          temp_double = (controller_value / 127.0) * 4095.0;
-          rpn_value = (word)temp_double;
+          rpn_value = ((word)controller_value) << 5;
           break;
 
         case MIDI_CONTROL_CHANGE_DATA_ENTRY:
@@ -1047,9 +1047,6 @@ void handle_midi_input(Stream *midi_port) {
     }
   }
 }
-
-long last_update = 0;
-const double update_every_micros = (100.0 / 4.41);
 
 double get_attack_seconds(unsigned int voice) {
   byte value = highNibble(sid_state_bytes[(voice * 7) + REGISTER_BANK_OFFSET_VOICE_ENVELOPE_AD]);
