@@ -689,57 +689,57 @@ void handle_message_voice_detune_change(byte voice, double detune_factor) {
   sid_set_voice_frequency(voice, frequency);
 }
 
-void handle_message_note_on(byte note_number, byte velocity) {
-  double temp_double = 0.0;
-  int note_voice = 0;
-  if (polyphony == 1) { // we're mono. for now all voices will have the same frequency.
-    for (int i = 0; i < MAX_POLYPHONY; i++ ) {
-      temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
-      temp_double = MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, temp_double / 12.0);
-      if (!volume_modulation_mode_active) {
-        sid_set_gate(i, false);
-        if (!pulse_width_modulation_mode_active) {
-          sid_set_voice_frequency(i, temp_double);
-        } else {
-          sid_set_voice_frequency(i, PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY);
-        }
-        sid_set_gate(i, true);
-      }
-      notes_playing[i] = note_number;
-      note_on_times[i] = micros();
-    }
-  } else {  // we're poly, so every voice has to have its own frequency
-    for (int i = 0; i < polyphony; i++) {
-      if (notes_playing[i] == 0) {
-        notes_playing[i] = note_number;
-        note_on_times[i] = micros();
-        note_voice = i;
-        break;
-      } else {
-        if (i == (polyphony - 1)) {
-          notes_playing[0] = notes_playing[1];
-          notes_playing[1] = notes_playing[2];
-          notes_playing[2] = note_number;
+// set the oscillator frequency and gate it!
+// - takes stateful stuff into account, like pitch bend and detune
+// - will first de-gate the oscillator iff it's not already de-gated for some reason
+// - handles global modulation modes (if we're in volume mod mode, we don't actually interact with the voice.)
+void play_note_for_voice(byte note_number, unsigned int voice) {
+  double hertz = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[voice] * detune_max_semitones);
+  hertz = MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, hertz / 12.0);
 
-          note_on_times[0] = note_on_times[1];
-          note_on_times[1] = note_on_times[2];
-          note_on_times[2] = micros();
-
-          note_voice = i;
-          break;
-        }
-      }
+  if (!volume_modulation_mode_active) {
+    if (get_gate(voice) && !legato_mode) {
+      sid_set_gate(voice, false);
     }
-    temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[note_voice] * detune_max_semitones);
-    temp_double = MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, temp_double / 12.0);
-    if (!volume_modulation_mode_active) {
-      sid_set_gate(note_voice, false);
-      if (!pulse_width_modulation_mode_active) {
-        sid_set_voice_frequency(note_voice, temp_double);
-      } else { sid_set_voice_frequency(note_voice, PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY); }
-      sid_set_gate(note_voice, true);
+    if (!pulse_width_modulation_mode_active) {
+      sid_set_voice_frequency(voice, hertz);
+    } else {
+      sid_set_voice_frequency(voice, PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY);
+    }
+    if (!get_gate(voice)) {
+      sid_set_gate(voice, true);
+      note_on_times[voice] = micros();
     }
   }
+
+  notes_playing[voice] = note_number;
+}
+
+void handle_message_note_on(byte note_number, byte velocity) {
+  if (polyphony == 1) {
+    for (int i = 0; i < polyphony; i++ ) {
+      play_note_for_voice(note_number, i);
+    }
+    return;
+  }
+
+  // we're poly, so every voice has its own frequency.
+  // if there's a free voice, we can just use that.
+  for (int i = 0; i < polyphony; i++) {
+    if (notes_playing[i] == 0) {
+      play_note_for_voice(note_number, i);
+      return;
+    }
+  }
+
+  // there are no free voices, so find the oldest one and replace it.
+  unsigned int oldest_voice = 0;
+  for (int i = 1; i < polyphony; i++) {
+    if (notes_playing[i] != 0 && note_on_times[i] < note_on_times[oldest_voice]) {
+      oldest_voice = i;
+    }
+  }
+  play_note_for_voice(note_number, oldest_voice);
 }
 
 void handle_message_note_off(byte note_number, byte velocity) {
