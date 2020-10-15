@@ -135,10 +135,10 @@ int detune_max_semitones = 5;
 
 const int DEFAULT_PULSE_WIDTH = 2048; // (2**12 - 1) / 2
 const int DEFAULT_WAVEFORM = SID_TRIANGLE;
-const int DEFAULT_ATTACK = 2;
-const int DEFAULT_DECAY = 3;
-const int DEFAULT_SUSTAIN = 14;
-const int DEFAULT_RELEASE = 4;
+const int DEFAULT_ATTACK = 0;
+const int DEFAULT_DECAY = 0;
+const int DEFAULT_SUSTAIN = 15;
+const int DEFAULT_RELEASE = 0;
 
 // experimental: used to implement 14-bit resolution for PW values spread over two sequential CC messages
 word pw_v1     = 0;
