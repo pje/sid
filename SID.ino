@@ -136,12 +136,12 @@ double current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
 double voice_detune_percents[MAX_POLYPHONY] = { 0.0, 0.0, 0.0 }; // [-1.0 .. 1.0]
 int detune_max_semitones = 5;
 
-const int DEFAULT_PULSE_WIDTH = 2048; // (2**12 - 1) / 2
-const int DEFAULT_WAVEFORM = SID_TRIANGLE;
-const int DEFAULT_ATTACK = 0;
-const int DEFAULT_DECAY = 0;
-const int DEFAULT_SUSTAIN = 15;
-const int DEFAULT_RELEASE = 0;
+const word DEFAULT_PULSE_WIDTH = 2048; // (2**12 - 1) / 2
+const byte DEFAULT_WAVEFORM = SID_TRIANGLE;
+const byte DEFAULT_ATTACK = 0;
+const byte DEFAULT_DECAY = 0;
+const byte DEFAULT_SUSTAIN = 15;
+const byte DEFAULT_RELEASE = 0;
 
 // experimental: used to implement 14-bit resolution for PW values spread over two sequential CC messages
 word pw_v1     = 0;
