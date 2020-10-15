@@ -748,9 +748,9 @@ void handle_message_note_off(byte note_number, byte velocity) {
       if (!pulse_width_modulation_mode_active) {
         sid_set_gate(i, false);
       }
+      note_off_times[i] = micros();
       notes_playing[i] = 0;
       note_on_times[i] = 0;
-      note_off_times[i] = micros();
     }
   }
 }
