@@ -161,9 +161,9 @@ word data_entry = 0;
 // You know that click when we change the SID's volume? Turns out if we modulate
 // that click we can generate arbitrary 4-bit wveforms including sine waves and
 // sample playback. (Currently this mode just means "4-bit sine")
-boolean volume_modulation_mode_active = false;
+bool volume_modulation_mode_active = false;
 
-boolean pulse_width_modulation_mode_active = false;
+bool pulse_width_modulation_mode_active = false;
 const double PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY = 65535;
 
 long last_update = 0;
@@ -413,7 +413,7 @@ void sid_set_waveform(int voice, byte waveform) {
   sid_transfer(address, data);
 }
 
-void sid_set_ring_mod(int voice, boolean on) {
+void sid_set_ring_mod(int voice, bool on) {
   byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL;
   byte data = 0;
   if (on) {
@@ -434,13 +434,13 @@ void sid_set_ring_mod(int voice, boolean on) {
   sid_transfer(address, data);
 }
 
-void sid_set_test(int voice, boolean on) {
+void sid_set_test(int voice, bool on) {
   byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL;
   byte data = (on ? (sid_state_bytes[address] | SID_TEST) : (sid_state_bytes[address] & ~SID_TEST));
   sid_transfer(address, data);
 }
 
-void sid_set_sync(int voice, boolean on) {
+void sid_set_sync(int voice, bool on) {
   byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL;
   byte data = (on ? (sid_state_bytes[address] | SID_SYNC) : (sid_state_bytes[address] & ~SID_SYNC));
   sid_transfer(address, data);
@@ -520,7 +520,7 @@ void sid_set_filter(byte voice, boolean on) {
 // const byte SID_FILTER_HP     = 0B01000000;
 // const byte SID_FILTER_BP     = 0B00100000;
 // const byte SID_FILTER_LP     = 0B00010000;
-void sid_set_filter_mode(byte mode, boolean on) {
+void sid_set_filter_mode(byte mode, bool on) {
   byte address = SID_REGISTER_ADDRESS_FILTER_MODE_VOLUME;
   byte data = sid_state_bytes[address];
   if (on) {
@@ -541,7 +541,7 @@ void sid_set_voice_frequency(int voice, double hertz) {
   sid_transfer(hiAddress, hiFrequency);
 }
 
-void sid_set_gate(int voice, boolean state) {
+void sid_set_gate(int voice, bool state) {
   byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL;
   byte data;
   if (state) {
@@ -612,7 +612,7 @@ void handle_message_voice_release_change(byte voice, byte envelope_value) {
   }
 }
 
-void handle_message_voice_waveform_change(byte voice, byte waveform, boolean on) {
+void handle_message_voice_waveform_change(byte voice, byte waveform, bool on) {
   if (on) {
     if (polyphony > 1) {
       for (int i = 0; i < 3; i++) {
@@ -632,7 +632,7 @@ void handle_message_voice_waveform_change(byte voice, byte waveform, boolean on)
   }
 }
 
-void handle_message_voice_filter_change(byte voice, boolean on) {
+void handle_message_voice_filter_change(byte voice, bool on) {
   if (polyphony > 1) {
     for (int i = 0; i < 3; i++) {
       sid_set_filter(i, on);
@@ -652,7 +652,7 @@ void handle_message_voice_pulse_width_change(byte voice, word frequency) {
   }
 }
 
-void handle_message_voice_ring_mod_change(byte voice, boolean on) {
+void handle_message_voice_ring_mod_change(byte voice, bool on) {
   if (polyphony > 1) {
     for (int i = 0; i < polyphony; i++) {
       sid_set_ring_mod(i, on);
@@ -662,7 +662,7 @@ void handle_message_voice_ring_mod_change(byte voice, boolean on) {
   }
 }
 
-void handle_message_voice_sync_change(byte voice, boolean on) {
+void handle_message_voice_sync_change(byte voice, bool on) {
   if (polyphony > 1) {
     for (int i = 0; i < polyphony; i++) {
       sid_set_sync(i, on);
@@ -672,7 +672,7 @@ void handle_message_voice_sync_change(byte voice, boolean on) {
   }
 }
 
-void handle_message_voice_test_change(byte voice, boolean on) {
+void handle_message_voice_test_change(byte voice, bool on) {
   if (polyphony > 1) {
     for (int i = 0; i < polyphony; i++) {
       sid_set_test(i, on);
