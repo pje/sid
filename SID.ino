@@ -358,14 +358,6 @@ void sid_zero_all_registers() {
   }
 }
 
-void sid_zero_voice_registers(int voice) {
-  byte address = 0;
-  for (int i = 0; i < 7; i++) {
-    address = (voice * 7) + i;
-    sid_transfer(address, 0);
-  }
-}
-
 void sid_set_volume(byte level) {
   byte address = SID_REGISTER_ADDRESS_FILTER_MODE_VOLUME;
   byte data = (sid_state_bytes[address] & 0B11110000) | (level & 0B00001111);
