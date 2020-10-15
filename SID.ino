@@ -573,114 +573,112 @@ void nullify_notes_playing() {
 }
 
 void handle_message_voice_attack_change(byte voice, byte envelope_value) {
-  sid_set_attack(voice, envelope_value);
-
-  if (polyphony == 3) {
-    for (int i = 0; i < 3; i++) {
+  if (polyphony > 1) {
+    for (int i = 0; i < polyphony; i++) {
       sid_set_attack(i, envelope_value);
     }
+  } else {
+    sid_set_attack(voice, envelope_value);
   }
 }
 
 void handle_message_voice_decay_change(byte voice, byte envelope_value) {
-  sid_set_decay(voice, envelope_value);
-
-  if (polyphony == 3) {
+  if (polyphony > 1) {
     for (int i = 0; i < 3; i++) {
       sid_set_decay(i, envelope_value);
     }
+  } else {
+    sid_set_decay(voice, envelope_value);
   }
 }
 
 void handle_message_voice_sustain_change(byte voice, byte envelope_value) {
-  sid_set_sustain(voice, envelope_value);
-
-  if (polyphony == 3) {
+  if (polyphony > 1) {
     for (int i = 0; i < 3; i++) {
       sid_set_sustain(i, envelope_value);
     }
+  } else {
+    sid_set_sustain(voice, envelope_value);
   }
 }
 
 void handle_message_voice_release_change(byte voice, byte envelope_value) {
-  sid_set_release(voice, envelope_value);
-
-  if (polyphony == 3) {
+  if (polyphony > 1) {
     for (int i = 0; i < 3; i++) {
       sid_set_release(i, envelope_value);
     }
+  } else {
+    sid_set_release(voice, envelope_value);
   }
 }
 
 void handle_message_voice_waveform_change(byte voice, byte waveform, boolean on) {
   if (on) {
-    sid_set_waveform(voice, waveform);
-
-    if (polyphony == 3) {
+    if (polyphony > 1) {
       for (int i = 0; i < 3; i++) {
         sid_set_waveform(i, waveform);
       }
+    } else {
+      sid_set_waveform(voice, waveform);
     }
-  } else { // we turn the voice "off" by zeroing its waveform bits and gate bit
-    sid_set_waveform(voice, 0);
-    sid_set_gate(voice, false);
-
-    if (polyphony == 3) {
+  } else { // we turn the voice "off" by zeroing its waveform bits
+    if (polyphony > 1) {
       for (int i = 0; i < 3; i++) {
         sid_set_waveform(i, 0);
-        sid_set_gate(i, false);
       }
+    } else {
+      sid_set_waveform(voice, 0);
     }
   }
 }
 
 void handle_message_voice_filter_change(byte voice, boolean on) {
-  sid_set_filter(voice, on);
-
-  if (polyphony == 3) {
+  if (polyphony > 1) {
     for (int i = 0; i < 3; i++) {
       sid_set_filter(i, on);
     }
+  } else {
+    sid_set_filter(voice, on);
   }
 }
 
 void handle_message_voice_pulse_width_change(byte voice, word frequency) {
-  sid_set_pulse_width(voice, frequency);
-
-  if (polyphony == 3) {
-    for (int i = 0; i < 3; i++) {
+  if (polyphony > 1) {
+    for (int i = 0; i < polyphony; i++) {
       sid_set_pulse_width(i, frequency);
     }
+  } else {
+    sid_set_pulse_width(voice, frequency);
   }
 }
 
 void handle_message_voice_ring_mod_change(byte voice, boolean on) {
-  sid_set_ring_mod(voice, on);
-
-  if (polyphony == 3) {
-    for (int i = 0; i < 3; i++) {
-      sid_set_ring_mod(voice, on);
+  if (polyphony > 1) {
+    for (int i = 0; i < polyphony; i++) {
+      sid_set_ring_mod(i, on);
     }
+  } else {
+    sid_set_ring_mod(voice, on);
   }
 }
 
 void handle_message_voice_sync_change(byte voice, boolean on) {
-  sid_set_sync(voice, on);
-
-  if (polyphony == 3) {
-    for (int i = 0; i < 3; i++) {
-      sid_set_sync(voice, on);
+  if (polyphony > 1) {
+    for (int i = 0; i < polyphony; i++) {
+      sid_set_sync(i, on);
     }
+  } else {
+    sid_set_sync(voice, on);
   }
 }
 
 void handle_message_voice_test_change(byte voice, boolean on) {
-  sid_set_test(voice, on);
-
-  if (polyphony == 3) {
-    for (int i = 0; i < 3; i++) {
-      sid_set_test(voice, on);
+  if (polyphony > 1) {
+    for (int i = 0; i < polyphony; i++) {
+      sid_set_test(i, on);
     }
+  } else {
+    sid_set_test(voice, on);
   }
 }
 
