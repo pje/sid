@@ -1040,7 +1040,7 @@ void handle_midi_input(Stream *midi_port) {
           break;
 
         case MIDI_CONTROL_CHANGE_SET_FILTER_RESONANCE:
-          sid_set_filter_resonance(controller_value, 16);
+          sid_set_filter_resonance(constrain(controller_value, 0, 15));
           break;
 
         case MIDI_CONTROL_CHANGE_SET_VOLUME:
