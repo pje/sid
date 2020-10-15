@@ -496,7 +496,7 @@ void sid_set_filter_resonance(byte amount) {
   sid_transfer(address, data);
 }
 
-void sid_set_filter(byte voice, boolean on) {
+void sid_set_filter(byte voice, bool on) {
   byte address = SID_REGISTER_ADDRESS_FILTER_RESONANCE;
   byte data;
   byte voice_filter_mask;
