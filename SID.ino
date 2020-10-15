@@ -37,6 +37,34 @@ const byte SID_FILTER_VOICE2 = 0B00000010;
 const byte SID_FILTER_VOICE3 = 0B00000100;
 const byte SID_FILTER_EXT    = 0B00001000;
 
+const char *sid_register_short_names[25] = {
+  "V1 FREQ LO ",
+  "V1 FREQ HI ",
+  "V1 PW LO   ",
+  "V1 PW HI   ",
+  "V1 CONTROL ",
+  "V1 ATK/DCY ",
+  "V1 STN/RLS ",
+  "V2 FREQ LO ",
+  "V2 FREQ HI ",
+  "V2 PW LO   ",
+  "V2 PW HI   ",
+  "V2 CONTROL ",
+  "V2 ATK/DCY ",
+  "V2 STN/RLS ",
+  "V3 FREQ LO ",
+  "V3 FREQ HI ",
+  "V3 PW LO   ",
+  "V3 PW HI   ",
+  "V3 CONTROL ",
+  "V3 ATK/DCY ",
+  "V3 STN/RLS ",
+  "FG FC LO   ",
+  "FG FC HI   ",
+  "FG RES/FILT",
+  "FG MODE/VOL"
+};
+
 // since we have to set all the bits in a register byte at once,
 // we must maintain a copy of the register's state so we don't clobber bits
 // (SID actually has 28 registers but we don't use the last 4. hence 25)
@@ -815,7 +843,10 @@ void handle_state_dump_request() {
       strcat(str, ((sid_state_bytes[i] & j) == j) ? "1" : "0");
     }
 
-    Serial.println(str);
+    Serial.print(str);
+    Serial.print("  // ");
+    Serial.print(sid_register_short_names[i]);
+    Serial.print("\n");
   }
 }
 
