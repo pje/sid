@@ -116,7 +116,8 @@ const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_TWO              = 72; // 7-bit 
 const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_THREE            = 80; // 7-bit value
 const byte MIDI_CONTROL_CHANGE_SET_VOLUME                        = 43; // 4-bit value
 
-const byte MIDI_CONTROL_CHANGE_TOGGLE_FOURTH_VOICE_MODE          = 81; // 1-bit value
+const byte MIDI_CONTROL_CHANGE_TOGGLE_VOLUME_MODULATION_MODE     = 81; // 1-bit value
+const byte MIDI_CONTROL_CHANGE_TOGGLE_PULSE_WIDTH_MODULATION_MODE= 83; // 1-bit value
 
 const byte MIDI_CONTROL_CHANGE_RPN_MSB                           = 101;
 const byte MIDI_CONTROL_CHANGE_RPN_LSB                           = 100;
@@ -168,6 +169,9 @@ word data_entry = 0;
 // that click we can generate arbitrary 4-bit wveforms including sine waves and
 // sample playback. (Currently this mode just means "4-bit sine")
 boolean volume_modulation_mode_active = false;
+
+boolean pulse_width_modulation_mode_active = false;
+const double PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY = 65535;
 
 long last_update = 0;
 const double update_every_micros = (100.0 / 4.41);
@@ -646,7 +650,11 @@ void handle_message_note_on(byte note_number, byte velocity) {
       temp_double = MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, temp_double / 12.0);
       if (!volume_modulation_mode_active) {
         sid_set_gate(i, false);
-        sid_set_voice_frequency(i, temp_double);
+        if (!pulse_width_modulation_mode_active) {
+          sid_set_voice_frequency(i, temp_double);
+        } else {
+          sid_set_voice_frequency(i, PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY);
+        }
         sid_set_gate(i, true);
       }
       notes_playing[i] = note_number;
@@ -678,7 +686,9 @@ void handle_message_note_on(byte note_number, byte velocity) {
     temp_double = MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, temp_double / 12.0);
     if (!volume_modulation_mode_active) {
       sid_set_gate(note_voice, false);
-      sid_set_voice_frequency(note_voice, temp_double);
+      if (!pulse_width_modulation_mode_active) {
+        sid_set_voice_frequency(note_voice, temp_double);
+      } else { sid_set_voice_frequency(note_voice, PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY); }
       sid_set_gate(note_voice, true);
     }
   }
@@ -687,7 +697,9 @@ void handle_message_note_on(byte note_number, byte velocity) {
 void handle_message_note_off(byte note_number, byte velocity) {
   for (int i = 0; i < MAX_POLYPHONY; i++) {
     if (notes_playing[i] == note_number) {
-      sid_set_gate(i, false);
+      if (!pulse_width_modulation_mode_active) {
+        sid_set_gate(i, false);
+      }
       notes_playing[i] = 0;
       note_on_times[i] = 0;
       note_off_times[i] = micros();
@@ -702,7 +714,9 @@ void handle_message_pitchbend_change(word pitchbend) {
     if (notes_playing[i] != 0) {
       temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
       temp_double = MIDI_NOTES_TO_FREQUENCIES[notes_playing[i]] * pow(2, temp_double / 12.0);
-      sid_set_voice_frequency(i, temp_double);
+      if (!pulse_width_modulation_mode_active){
+        sid_set_voice_frequency(i, temp_double);
+      }
     }
   }
 }
@@ -715,6 +729,24 @@ void handle_message_program_change(byte program_number) {
   case MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC:
     polyphony = 1;
     break;
+  }
+}
+
+void enable_pulse_width_modulation_mode() {
+  pulse_width_modulation_mode_active = true;
+
+  for (int i = 0; i < 3; i++) {
+    sid_set_waveform(i, SID_SQUARE);
+    sid_set_voice_frequency(i, PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY);
+  }
+}
+
+void disable_pulse_width_modulation_mode() {
+  pulse_width_modulation_mode_active = false;
+
+  for (int i = 0; i < 3; i++) {
+    sid_set_test(i, false);
+    sid_set_waveform(i, SID_TRIANGLE);
   }
 }
 
@@ -984,8 +1016,15 @@ void handle_midi_input(Stream *midi_port) {
           }
           break;
 
-        case MIDI_CONTROL_CHANGE_TOGGLE_FOURTH_VOICE_MODE:
+        case MIDI_CONTROL_CHANGE_TOGGLE_VOLUME_MODULATION_MODE:
           volume_modulation_mode_active = (controller_value == 127);
+          break;
+        case MIDI_CONTROL_CHANGE_TOGGLE_PULSE_WIDTH_MODULATION_MODE:
+          if (controller_value == 127) {
+            enable_pulse_width_modulation_mode();
+          } else {
+            disable_pulse_width_modulation_mode();
+          }
           break;
 
         case 127:
@@ -1085,7 +1124,11 @@ void loop () {
       int note = notes_playing[i];
 
       if (note != 0) {
-        double yt = sine_waveform(MIDI_NOTES_TO_FREQUENCIES[note], time_in_seconds, 0.5, 0);
+        double note_frequency = MIDI_NOTES_TO_FREQUENCIES[note];
+        double temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
+        note_frequency = note_frequency * pow(2, temp_double / 12.0);
+
+        double yt = sine_waveform(note_frequency, time_in_seconds, 0.5, 0);
         yt *= linear_envelope(
           get_attack_seconds(i),
           get_decay_seconds(i),
@@ -1103,6 +1146,39 @@ void loop () {
     }
 
     sid_set_volume((byte)volume);
+    last_update = micros();
+  }
+
+  if (pulse_width_modulation_mode_active && notes_playing[0] != 0 && ((time_in_micros - last_update) > update_every_micros)) {
+    double volume = 0;
+    double yt = 0;
+    int notes_playing_count = 0;
+    for (int i = 0; i < 3; i++) {
+      notes_playing[i] != 0 && notes_playing_count++;
+    }
+
+    for (int i = 0; i < notes_playing_count; i++) {
+      int note = notes_playing[i];
+      double note_frequency = MIDI_NOTES_TO_FREQUENCIES[note];
+
+      double temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
+      note_frequency = note_frequency * pow(2, temp_double / 12.0);
+
+      if (note != 0) {
+        double yt = sine_waveform(note_frequency, time_in_seconds, 0.5, 0);
+        yt *= linear_envelope(
+          get_attack_seconds(i),
+          get_decay_seconds(i),
+          get_sustain_percent(i),
+          get_release_seconds(i),
+          (time_in_micros - note_on_times[i]) / 1000000.0,
+          -1
+        );
+
+        sid_set_pulse_width(i, 4095.0 * yt);
+      }
+    }
+
     last_update = micros();
   }
 
