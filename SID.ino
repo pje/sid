@@ -372,7 +372,7 @@ void sid_set_waveform(int voice, byte waveform) {
 
 void sid_set_ring_mod(int voice, boolean on) {
   byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL;
-  byte data;
+  byte data = 0;
   if (on) {
     // ring mod repurposes the output of the triangle oscillator
     data = sid_state_bytes[address] | 0B00010100; // set triangle and ring mod bits, leave others as-is
