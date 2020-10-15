@@ -307,6 +307,46 @@ const double MIDI_NOTES_TO_FREQUENCIES[96] = {
   3951.066410048992   // B7
 };
 
+void clock_high() {
+  uint8_t oldSREG = SREG;
+  cli();
+
+  PORTC |= 0B01000000;
+  // digitalWrite(ARDUINO_SID_MASTER_CLOCK_PIN, HIGH);
+
+  SREG = oldSREG;
+}
+
+void clock_low() {
+  uint8_t oldSREG = SREG;
+  cli();
+
+  PORTC &= 0B10111111;
+  // digitalWrite(ARDUINO_SID_MASTER_CLOCK_PIN, LOW);
+
+  SREG = oldSREG;
+}
+
+void cs_high() {
+  uint8_t oldSREG = SREG;
+  cli();
+
+  PORTC |= 0B10000000;
+  // digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
+
+  SREG = oldSREG;
+}
+
+void cs_low() {
+  uint8_t oldSREG = SREG;
+  cli();
+
+  PORTC &= 0B01111111;
+  // digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, LOW);
+
+  SREG = oldSREG;
+}
+
 double get_attack_seconds(unsigned int voice) {
   byte value = highNibble(sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_AD]);
   return(sid_attack_values_to_seconds[value]);
