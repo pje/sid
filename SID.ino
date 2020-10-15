@@ -121,9 +121,12 @@ const word MIDI_RPN_NULL                                         = 16383;
 const byte MIDI_CHANNEL = 0; // "channel 1" (zero-indexed)
 const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_POLYPHONIC        = 0;
 const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC        = 1;
+const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC_LEGATO = 2;
 
 const byte MAX_POLYPHONY = 3;
 byte polyphony = 3;
+bool legato_mode = false;
+
 byte notes_playing[MAX_POLYPHONY]  = { 0, 0, 0 }; // '0' represents empty.
 long note_on_times[MAX_POLYPHONY]  = { 0, 0, 0 }; // '0' represents empty.
 long note_off_times[MAX_POLYPHONY] = { 0, 0, 0 }; // '0' represents empty.
@@ -772,9 +775,15 @@ void handle_message_program_change(byte program_number) {
   switch (program_number) {
   case MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_POLYPHONIC:
     polyphony = 3;
+    legato_mode = false;
     break;
   case MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC:
     polyphony = 1;
+    legato_mode = false;
+    break;
+  case MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC_LEGATO:
+    polyphony = 1;
+    legato_mode = true;
     break;
   }
 }
