@@ -2,16 +2,6 @@
 #include <usbmidi.h>
 #include "util.h"
 
-#define max(a,b) \
-  ({ __typeof__ (a) _a = (a); \
-      __typeof__ (b) _b = (b); \
-    _a > _b ? _a : _b; })
-
-#define min(a,b) \
-  ({ __typeof__ (a) _a = (a); \
-      __typeof__ (b) _b = (b); \
-    _a < _b ? _a : _b; })
-
 const int ARDUINO_SID_CHIP_SELECT_PIN = 13; // D13
 const int ARDUINO_SID_MASTER_CLOCK_PIN = 5; // D5
 
@@ -993,7 +983,7 @@ void handle_midi_input(Stream *midi_port) {
           break;
 
         case MIDI_CONTROL_CHANGE_SET_FILTER_RESONANCE:
-          sid_set_filter_resonance(min(controller_value, 16));
+          sid_set_filter_resonance(controller_value, 16);
           break;
 
         case MIDI_CONTROL_CHANGE_SET_VOLUME:
