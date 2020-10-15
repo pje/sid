@@ -307,6 +307,27 @@ const double MIDI_NOTES_TO_FREQUENCIES[96] = {
   3951.066410048992   // B7
 };
 
+double get_attack_seconds(unsigned int voice) {
+  byte value = highNibble(sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_AD]);
+  return(sid_attack_values_to_seconds[value]);
+}
+
+double get_decay_seconds(unsigned int voice) {
+  byte value = lowNibble(sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_AD]);
+  return(sid_decay_and_release_values_to_seconds[value]);
+}
+
+// returns float [0..1]
+double get_sustain_percent(unsigned int voice) {
+  byte value = highNibble(sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_SR]);
+  return((double) value / 16.0);
+}
+
+double get_release_seconds(unsigned int voice) {
+  byte value = lowNibble(sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_SR]);
+  return(sid_decay_and_release_values_to_seconds[value]);
+}
+
 void sid_transfer(byte address, byte data) {
   address &= 0B00011111;
 
@@ -1059,27 +1080,6 @@ void handle_midi_input(Stream *midi_port) {
       }
     }
   }
-}
-
-double get_attack_seconds(unsigned int voice) {
-  byte value = highNibble(sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_AD]);
-  return(sid_attack_values_to_seconds[value]);
-}
-
-double get_decay_seconds(unsigned int voice) {
-  byte value = lowNibble(sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_AD]);
-  return(sid_decay_and_release_values_to_seconds[value]);
-}
-
-// returns float [0..1]
-double get_sustain_percent(unsigned int voice) {
-  byte value = highNibble(sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_SR]);
-  return((double) value / 16.0);
-}
-
-double get_release_seconds(unsigned int voice) {
-  byte value = lowNibble(sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_SR]);
-  return(sid_decay_and_release_values_to_seconds[value]);
 }
 
 void loop () {
