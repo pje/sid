@@ -328,6 +328,10 @@ double get_release_seconds(unsigned int voice) {
   return(sid_decay_and_release_values_to_seconds[value]);
 }
 
+bool get_gate(unsigned int voice) {
+  return((sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL] & B00000001) == 1);
+}
+
 void sid_transfer(byte address, byte data) {
   address &= 0B00011111;
 
