@@ -1,3 +1,6 @@
+#ifndef UTIL_H
+#define UTIL_H
+
 #include <math.h>
 
 typedef unsigned char byte;
@@ -6,7 +9,7 @@ typedef unsigned int word;
 // y(t) = A * sin(2πft + φ)
 //
 // returns a double between `-amplitude` and `amplitude`
-double sine_waveform(double frequency, double seconds, double amplitude, long phase) {
+double sine_waveform(double frequency, double seconds, double amplitude, double phase) {
   double value = amplitude * sin((2 * 3.141592 * frequency * seconds) + phase);
   return value;
 }
@@ -26,3 +29,5 @@ double linear_envelope(double a, double d, double s, double r, double seconds, d
 
 byte lowNibble(byte b) { return(b & 0B00001111); }
 byte highNibble(byte b) { return((b & 0B11110000) >> 4); }
+
+#endif /* UTIL_H */
