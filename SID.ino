@@ -4,6 +4,9 @@
 #include <usbmidi.h>
 #include "util.h"
 
+typedef unsigned char byte;
+typedef unsigned int word;
+
 const bool DEBUG_SID_TRANSFER = false; // setting to true will print every SID data transfer
 
 const int ARDUINO_SID_CHIP_SELECT_PIN = 13; // D13
@@ -161,9 +164,13 @@ const byte MAX_POLYPHONY = 3;
 byte polyphony = 3;
 bool legato_mode = false;
 
-byte notes_playing[MAX_POLYPHONY]  = { 0, 0, 0 }; // '0' represents empty.
-long note_on_times[MAX_POLYPHONY]  = { 0, 0, 0 }; // '0' represents empty.
-long note_off_times[MAX_POLYPHONY] = { 0, 0, 0 }; // '0' represents empty.
+struct note {
+  byte number;
+  long on_time;
+  long off_time;
+};
+
+note notes_playing[MAX_POLYPHONY]  = { { .number = 0, .on_time = 0, .off_time = 0 } };
 
 int midi_pitch_bend_max_semitones = 5;
 double current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
@@ -684,7 +691,7 @@ void start_clock() {
 
 void nullify_notes_playing() {
   for (int i = 0; i < MAX_POLYPHONY; i++) {
-    notes_playing[i] = 0;
+    notes_playing[i] = { .number = 0, .on_time = 0, .off_time = 0 };
   }
 }
 
@@ -801,7 +808,7 @@ void handle_message_voice_test_change(byte voice, bool on) {
 void handle_message_voice_detune_change(byte voice, double detune_factor) {
   voice_detune_percents[voice] = detune_factor;
   double semitone_change = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[voice] * detune_max_semitones);
-  double frequency = MIDI_NOTES_TO_FREQUENCIES[notes_playing[voice]] * pow(2, semitone_change / 12.0);
+  double frequency = MIDI_NOTES_TO_FREQUENCIES[notes_playing[voice].number] * pow(2, semitone_change / 12.0);
   sid_set_voice_frequency(voice, frequency);
 }
 
@@ -824,11 +831,11 @@ void play_note_for_voice(byte note_number, unsigned int voice) {
     }
     if (!get_voice_gate(voice)) {
       sid_set_gate(voice, true);
-      note_on_times[voice] = micros();
+      notes_playing[voice].on_time = micros();
     }
   }
 
-  notes_playing[voice] = note_number;
+  notes_playing[voice].number = note_number;
 }
 
 void handle_message_note_on(byte note_number, byte velocity) {
@@ -842,7 +849,7 @@ void handle_message_note_on(byte note_number, byte velocity) {
   // we're poly, so every voice has its own frequency.
   // if there's a free voice, we can just use that.
   for (int i = 0; i < polyphony; i++) {
-    if (notes_playing[i] == 0) {
+    if (notes_playing[i].number == 0) {
       play_note_for_voice(note_number, i);
       return;
     }
@@ -851,7 +858,7 @@ void handle_message_note_on(byte note_number, byte velocity) {
   // there are no free voices, so find the oldest one and replace it.
   unsigned int oldest_voice = 0;
   for (int i = 1; i < polyphony; i++) {
-    if (notes_playing[i] != 0 && note_on_times[i] < note_on_times[oldest_voice]) {
+    if (notes_playing[i].number != 0 && notes_playing[i].on_time < notes_playing[oldest_voice].on_time) {
       oldest_voice = i;
     }
   }
@@ -860,13 +867,11 @@ void handle_message_note_on(byte note_number, byte velocity) {
 
 void handle_message_note_off(byte note_number, byte velocity) {
   for (int i = 0; i < MAX_POLYPHONY; i++) {
-    if (notes_playing[i] == note_number) {
+    if (notes_playing[i].number == note_number) {
       if (!pulse_width_modulation_mode_active) {
         sid_set_gate(i, false);
       }
-      note_off_times[i] = micros();
-      notes_playing[i] = 0;
-      note_on_times[i] = 0;
+      notes_playing[i] = { .number = 0, .on_time = 0, .off_time = micros() };
     }
   }
 }
@@ -875,9 +880,9 @@ void handle_message_pitchbend_change(word pitchbend) {
   double temp_double = 0.0;
   current_pitchbend_amount = ((pitchbend / 8192.0) - 1); // 8192 is the "neutral" pitchbend value (half of 2**14)
   for (int i = 0; i < MAX_POLYPHONY; i++) {
-    if (notes_playing[i] != 0) {
+    if (notes_playing[i].number != 0) {
       temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
-      temp_double = MIDI_NOTES_TO_FREQUENCIES[notes_playing[i]] * pow(2, temp_double / 12.0);
+      temp_double = MIDI_NOTES_TO_FREQUENCIES[notes_playing[i].number] * pow(2, temp_double / 12.0);
       if (!pulse_width_modulation_mode_active){
         sid_set_voice_frequency(i, temp_double);
       }
@@ -903,9 +908,7 @@ void handle_message_program_change(byte program_number) {
     duplicate_voice(0, 1);
     duplicate_voice(0, 2);
     for (int i = 0; i < 3; i++) {
-      notes_playing[i] = 0;
-      note_on_times[i] = 0;
-      note_off_times[i] = 0;
+      notes_playing[i] = { .number = 0, .on_time = 0, .off_time = 0 };
     }
     legato_mode = false;
     break;
@@ -1010,27 +1013,27 @@ void handle_state_dump_request(bool human) {
     Serial.print("\n\n");
 
     Serial.print("notes_playing: {");
-    Serial.print(notes_playing[0]);
+    Serial.print(notes_playing[0].number);
     Serial.print(", ");
-    Serial.print(notes_playing[1]);
+    Serial.print(notes_playing[1].number);
     Serial.print(", ");
-    Serial.print(notes_playing[2]);
+    Serial.print(notes_playing[2].number);
     Serial.print("}\n");
 
     Serial.print("note_on_times: {");
-    Serial.print(note_on_times[0]);
+    Serial.print(notes_playing[0].on_time);
     Serial.print(", ");
-    Serial.print(note_on_times[1]);
+    Serial.print(notes_playing[1].on_time);
     Serial.print(", ");
-    Serial.print(note_on_times[2]);
+    Serial.print(notes_playing[2].on_time);
     Serial.print("}\n");
 
     Serial.print("note_off_times: {");
-    Serial.print(note_off_times[0]);
+    Serial.print(notes_playing[0].off_time);
     Serial.print(", ");
-    Serial.print(note_off_times[1]);
+    Serial.print(notes_playing[1].off_time);
     Serial.print(", ");
-    Serial.print(note_off_times[2]);
+    Serial.print(notes_playing[2].off_time);
     Serial.print("}\n");
 
   } else {
@@ -1329,10 +1332,8 @@ void handle_midi_input(Stream *midi_port) {
 
 void clean_slate() {
   memset(sid_state_bytes, 0, 25*sizeof(*sid_state_bytes));
-  memset(notes_playing, 0, MAX_POLYPHONY*sizeof(*notes_playing));
-  memset(note_on_times, 0, MAX_POLYPHONY*sizeof(*note_on_times));
-  memset(note_off_times, 0, MAX_POLYPHONY*sizeof(*note_off_times));
   memset(voice_detune_percents, 0, MAX_POLYPHONY*sizeof(*voice_detune_percents));
+  nullify_notes_playing();
 
   polyphony = 3;
   legato_mode = false;
@@ -1352,8 +1353,6 @@ void clean_slate() {
   volume_modulation_mode_active = false;
   pulse_width_modulation_mode_active = false;
   last_update = 0;
-
-  nullify_notes_playing();
 
   sid_zero_all_registers();
   for (int i = 0; i < MAX_POLYPHONY; i++) {
@@ -1392,25 +1391,25 @@ void loop () {
   // notes. To work around this, we have to set each oscillator's frequency to 0
   // only when we are certain it's past its ADSR time.
   for (int i = 0; i < 3; i++) {
-    if (notes_playing[i] == 0 && note_off_times[i] > 0 && (time_in_micros > (note_off_times[i] + get_release_seconds(i) * 1000000.0))) {
+    if (notes_playing[i].number == 0 && notes_playing[i].off_time > 0 && (time_in_micros > (notes_playing[i].off_time + get_release_seconds(i) * 1000000.0))) {
       // we're past the release phase, so the voice can't be making any noise, so we must "fully" silence it
       sid_set_voice_frequency(i, 0);
-      note_off_times[i] = 0;
+      notes_playing[i].off_time = 0;
     }
   }
 
   // if any notes are playing in `volume_modulation_mode`, we have to implement
   // ADSR stuff on our own.
-  if (volume_modulation_mode_active && notes_playing[0] != 0 && ((time_in_micros - last_update) > update_every_micros)) {
+  if (volume_modulation_mode_active && notes_playing[0].number != 0 && ((time_in_micros - last_update) > update_every_micros)) {
     double volume = 0;
     double yt = 0;
     int notes_playing_count = 0;
     for (int i = 0; i < 3; i++) {
-      notes_playing[i] != 0 && notes_playing_count++;
+      notes_playing[i].number != 0 && notes_playing_count++;
     }
 
     for (int i = 0; i < notes_playing_count; i++) {
-      int note = notes_playing[i];
+      int note = notes_playing[i].number;
 
       if (note != 0) {
         double note_frequency = MIDI_NOTES_TO_FREQUENCIES[note];
@@ -1423,7 +1422,7 @@ void loop () {
           get_decay_seconds(i),
           get_sustain_percent(i),
           get_release_seconds(i),
-          (time_in_micros - note_on_times[i]) / 1000000.0,
+          (time_in_micros - notes_playing[i].on_time) / 1000000.0,
           -1
         );
 
@@ -1439,16 +1438,16 @@ void loop () {
   }
 
   // same with `pulse_width_modulation_mode`
-  if (pulse_width_modulation_mode_active && notes_playing[0] != 0 && ((time_in_micros - last_update) > update_every_micros)) {
+  if (pulse_width_modulation_mode_active && notes_playing[0].number != 0 && ((time_in_micros - last_update) > update_every_micros)) {
     double volume = 0;
     double yt = 0;
     int notes_playing_count = 0;
     for (int i = 0; i < 3; i++) {
-      notes_playing[i] != 0 && notes_playing_count++;
+      notes_playing[i].number != 0 && notes_playing_count++;
     }
 
     for (int i = 0; i < notes_playing_count; i++) {
-      int note = notes_playing[i];
+      int note = notes_playing[i].number;
       double note_frequency = MIDI_NOTES_TO_FREQUENCIES[note];
 
       double temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
@@ -1461,7 +1460,7 @@ void loop () {
           get_decay_seconds(i),
           get_sustain_percent(i),
           get_release_seconds(i),
-          (time_in_micros - note_on_times[i]) / 1000000.0,
+          (time_in_micros - notes_playing[i].on_time) / 1000000.0,
           -1
         );
 
