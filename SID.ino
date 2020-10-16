@@ -2,6 +2,8 @@
 #include <usbmidi.h>
 #include "util.h"
 
+const bool DEBUG_SID_TRANSFER = false; // setting to true will print every SID data transfer
+
 const int ARDUINO_SID_CHIP_SELECT_PIN = 13; // D13
 const int ARDUINO_SID_MASTER_CLOCK_PIN = 5; // D5
 
@@ -485,6 +487,14 @@ void sid_transfer(byte address, byte data) {
   digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
   sid_state_bytes[address] = data;
   // PORTC |= 0B10000000; // faster version of digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
+
+  if (DEBUG_SID_TRANSFER) {
+    Serial.print("sid_transfer(");
+    Serial.print(address, BIN);
+    Serial.print(", ");
+    Serial.print(data, BIN);
+    Serial.print(")\n");
+  }
 }
 
 void sid_zero_all_registers() {
