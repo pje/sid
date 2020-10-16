@@ -995,6 +995,31 @@ void handle_state_dump_request(bool human) {
     Serial.print("Volume: ");
     Serial.print(get_volume());
     Serial.print("\n\n");
+
+    Serial.print("notes_playing: {");
+    Serial.print(notes_playing[0]);
+    Serial.print(", ");
+    Serial.print(notes_playing[1]);
+    Serial.print(", ");
+    Serial.print(notes_playing[2]);
+    Serial.print("}\n");
+
+    Serial.print("note_on_times: {");
+    Serial.print(note_on_times[0]);
+    Serial.print(", ");
+    Serial.print(note_on_times[1]);
+    Serial.print(", ");
+    Serial.print(note_on_times[2]);
+    Serial.print("}\n");
+
+    Serial.print("note_off_times: {");
+    Serial.print(note_off_times[0]);
+    Serial.print(", ");
+    Serial.print(note_off_times[1]);
+    Serial.print(", ");
+    Serial.print(note_off_times[2]);
+    Serial.print("}\n");
+
   } else {
     for (int i = 0; i < 25; i++) {
       static char str[9];
