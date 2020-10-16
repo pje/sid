@@ -1226,11 +1226,8 @@ void loop () {
   // notes. To work around this, we have to set each oscillator's frequency to 0
   // only when we are certain it's past its ADSR time.
   for (int i = 0; i < 3; i++) {
-    if (
-        notes_playing[i] == 0 &&
-        note_off_times[i] > 0 && // `0` represents "nothing", i.e. "past release phase". I hate it too
-        (time_in_micros > (note_off_times[i] + get_release_seconds(i) * 1000000.0)) // we're past the release phase, so the voice can't be making any noise, so we must "fully" silence it
-      ) {
+    if (notes_playing[i] == 0 && note_off_times[i] > 0 && (time_in_micros > (note_off_times[i] + get_release_seconds(i) * 1000000.0))) {
+      // we're past the release phase, so the voice can't be making any noise, so we must "fully" silence it
       sid_set_voice_frequency(i, 0);
       note_off_times[i] = 0;
     }
@@ -1275,6 +1272,7 @@ void loop () {
     last_update = micros();
   }
 
+  // same with `pulse_width_modulation_mode`
   if (pulse_width_modulation_mode_active && notes_playing[0] != 0 && ((time_in_micros - last_update) > update_every_micros)) {
     double volume = 0;
     double yt = 0;
