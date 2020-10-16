@@ -198,6 +198,9 @@ const double PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY = 65535;
 long last_update = 0;
 const double update_every_micros = (100.0 / 4.41);
 
+long time_in_micros = 0;
+double time_in_seconds = 0;
+
 const double sid_attack_values_to_seconds[16] = {
   0.002,
   0.008,
@@ -1158,8 +1161,6 @@ void handle_midi_input(Stream *midi_port) {
 }
 
 void loop () {
-  long time_in_micros = micros();
-  double time_in_seconds = time_in_micros / 1000000.0;
 
   // SID has a bug where its oscillators sometimes "leak" the sound of previous
   // notes. To work around this, we have to set each oscillator's frequency to 0
