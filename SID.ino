@@ -836,11 +836,12 @@ void play_note_for_voice(byte note_number, unsigned int voice) {
   }
 
   notes_playing[voice].number = note_number;
+  notes_playing[voice].off_time = 0;
 }
 
 void handle_message_note_on(byte note_number, byte velocity) {
   if (polyphony == 1) {
-    for (int i = 0; i < polyphony; i++ ) {
+    for (int i = 0; i < MAX_POLYPHONY; i++ ) {
       play_note_for_voice(note_number, i);
     }
     return;
