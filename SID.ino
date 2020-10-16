@@ -1,3 +1,5 @@
+#include "Arduino.h"
+#include <avr/io.h>
 #include <math.h>
 #include <usbmidi.h>
 #include "util.h"
