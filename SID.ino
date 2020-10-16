@@ -382,6 +382,46 @@ void cs_low() {
   SREG = oldSREG;
 }
 
+double get_voice_frequency(unsigned int voice) {
+  word frequency = sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_HI];
+  frequency <<= 8;
+  frequency += sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_LO];
+  double hertz = frequency * CLOCK_SIGNAL_FACTOR;
+  return(hertz);
+}
+
+word get_voice_pulse_width(unsigned int voice) {
+  word pulse_width = sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_PULSE_WIDTH_HI];
+  pulse_width <<= 8;
+  pulse_width += sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_PULSE_WIDTH_LO];
+  return(pulse_width);
+}
+
+byte get_voice_waveform(unsigned int voice) {
+  byte control_register = sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL];
+  return((control_register & 0B11110000) >> 4);
+}
+
+bool get_voice_test_bit(unsigned int voice) {
+  byte control_register = sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL];
+  return((control_register & SID_TEST) != 0);
+}
+
+bool get_voice_ring_mod(unsigned int voice) {
+  byte control_register = sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL];
+  return((control_register & SID_RING) != 0);
+}
+
+bool get_voice_sync(unsigned int voice) {
+  byte control_register = sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL];
+  return((control_register & SID_SYNC) != 0);
+}
+
+bool get_voice_gate(unsigned int voice) {
+  byte control_register = sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL];
+  return((control_register & SID_GATE) != 0);
+}
+
 double get_attack_seconds(unsigned int voice) {
   byte value = highNibble(sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_AD]);
   return(sid_attack_values_to_seconds[value]);
@@ -403,8 +443,28 @@ double get_release_seconds(unsigned int voice) {
   return(sid_decay_and_release_values_to_seconds[value]);
 }
 
-bool get_gate(unsigned int voice) {
-  return((sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL] & B00000001) == 1);
+word get_filter_frequency() {
+  word frequency = sid_state_bytes[SID_REGISTER_ADDRESS_FILTER_FREQUENCY_HI];
+  frequency <<= 3;
+  frequency += sid_state_bytes[SID_REGISTER_ADDRESS_FILTER_FREQUENCY_LO];
+  return(frequency);
+}
+
+byte get_filter_resonance() {
+  byte resonance = sid_state_bytes[SID_REGISTER_ADDRESS_FILTER_RESONANCE] & B11110000;
+  resonance >>= 4;
+  return(resonance);
+}
+
+byte get_volume() {
+  return(sid_state_bytes[SID_REGISTER_ADDRESS_FILTER_MODE_VOLUME] & B00001111);
+}
+
+bool get_filter_enabled_for_voice(unsigned int voice) {
+  byte bits = sid_state_bytes[SID_REGISTER_ADDRESS_FILTER_RESONANCE] & B00000111;
+  bits >>= voice;
+  bits <<= (8 - (voice + 1));
+  return(bits != 0);
 }
 
 void sid_transfer(byte address, byte data) {
@@ -730,7 +790,7 @@ void play_note_for_voice(byte note_number, unsigned int voice) {
   hertz = MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, hertz / 12.0);
 
   if (!volume_modulation_mode_active) {
-    if (get_gate(voice) && !legato_mode) {
+    if (get_voice_gate(voice) && !legato_mode) {
       sid_set_gate(voice, false);
     }
     if (!pulse_width_modulation_mode_active) {
@@ -738,7 +798,7 @@ void play_note_for_voice(byte note_number, unsigned int voice) {
     } else {
       sid_set_voice_frequency(voice, PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY);
     }
-    if (!get_gate(voice)) {
+    if (!get_voice_gate(voice)) {
       sid_set_gate(voice, true);
       note_on_times[voice] = micros();
     }
