@@ -637,9 +637,9 @@ void sid_set_gate(int voice, bool state) {
   byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL;
   byte data;
   if (state) {
-    data = sid_state_bytes[address] | 0B00000001;
+    data = sid_state_bytes[address] | SID_GATE;
   } else {
-    data = sid_state_bytes[address] & 0B11111110;
+    data = sid_state_bytes[address] & ~SID_GATE;
   }
   sid_transfer(address, data);
 }
