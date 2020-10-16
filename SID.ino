@@ -919,51 +919,89 @@ void disable_pulse_width_modulation_mode() {
   }
 }
 
-void handle_state_dump_request() {
+void handle_state_dump_request(bool human) {
   // for testing purposes, print the state of our sid representation, which
   // should (hopefully) mirror what the SID's registers are right now
-  for (int i = 0; i < 25; i++) {
-    static char str[9];
-    str[0] = '\0';
 
-    for (int j = 128; j > 0; j >>= 1) {
-      strcat(str, ((sid_state_bytes[i] & j) == j) ? "1" : "0");
+  if (human) {
+    Serial.print("V#  WAVE     A    D    S    R    PW    TEST RING SYNC GATE FILT\n");
+    for (int i = 0; i < 3; i++) {
+      Serial.print("V");
+      Serial.print(i);
+      Serial.print("  ");
+
+      byte wave = get_voice_waveform(i);
+      if (wave == 0) {
+        Serial.print("Disabled");
+      } else if (wave == 1) {
+        Serial.print("Triangle");
+      } else if (wave == 2) {
+        Serial.print("Ramp    ");
+      } else if (wave == 4) {
+        Serial.print("Pulse   ");
+      } else if (wave == 8) {
+        Serial.print("Noise   ");
+      }
+
+      double a = get_attack_seconds(i);
+      double d = get_decay_seconds(i);
+      double s = get_sustain_percent(i);
+      double r = get_release_seconds(i);
+
+      Serial.print(" ");
+      Serial.print(a);
+      Serial.print(" ");
+      Serial.print(d);
+      Serial.print(" ");
+      Serial.print(s);
+      Serial.print(" ");
+      Serial.print(r);
+      Serial.print(" ");
+      Serial.print(get_voice_pulse_width(i));
+      Serial.print(" ");
+      Serial.print(get_voice_test_bit(i));
+      Serial.print("   ");
+      Serial.print(get_voice_ring_mod(i));
+      Serial.print("   ");
+      Serial.print(get_voice_sync(i));
+      Serial.print("   ");
+      Serial.print(get_voice_gate(i));
+      Serial.print("   ");
+      Serial.print(get_filter_enabled_for_voice(i));
+      Serial.print("\n");
     }
 
-    Serial.print(str);
-    Serial.print("  // ");
-    Serial.print(sid_register_short_names[i]);
+    Serial.print("Filter frequency: ");
+    Serial.print(get_filter_frequency());
+    Serial.print(" resonance: ");
+    Serial.print(get_filter_resonance());
+    Serial.print(" mode: ");
+
+    byte mask = sid_state_bytes[SID_REGISTER_ADDRESS_FILTER_MODE_VOLUME] & 0B01110000;
+
+    Serial.print(mask & 0B01000000 ? "HP" : "--");
+    Serial.print(mask & 0B00100000 ? "BP" : "--");
+    Serial.print(mask & 0B00010000 ? "LP" : "--");
+
     Serial.print("\n");
+    Serial.print("Volume: ");
+    Serial.print(get_volume());
+    Serial.print("\n\n");
+  } else {
+    for (int i = 0; i < 25; i++) {
+      static char str[9];
+      str[0] = '\0';
+
+      for (int j = 128; j > 0; j >>= 1) {
+        strcat(str, ((sid_state_bytes[i] & j) == j) ? "1" : "0");
+      }
+
+      Serial.print(str);
+      Serial.print("  // ");
+      Serial.print(sid_register_short_names[i]);
+      Serial.print("\n");
+    }
   }
-}
-
-void setup() {
-  DDRF = 0B01110011; // initialize 5 PORTF pins as output (connected to A0-A4)
-  DDRB = 0B11111111; // initialize 8 PORTB pins as output (connected to D0-D7)
-  // technically SID allows us to read from its last 4 registers, but we don't
-  // need to, so we just always keep SID's R/W pin low (signifying "write"),
-  // which seems to work ok
-
-  polyphony = 3;
-  nullify_notes_playing();
-
-  start_clock();
-
-  pinMode(ARDUINO_SID_CHIP_SELECT_PIN, OUTPUT);
-  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
-
-  sid_zero_all_registers();
-  for (int i = 0; i < MAX_POLYPHONY; i++) {
-    sid_set_pulse_width(i, DEFAULT_PULSE_WIDTH);
-    sid_set_waveform(i, DEFAULT_WAVEFORM);
-    sid_set_attack(i, DEFAULT_ATTACK);
-    sid_set_decay(i, DEFAULT_DECAY);
-    sid_set_sustain(i, DEFAULT_SUSTAIN);
-    sid_set_release(i, DEFAULT_RELEASE);
-  }
-  sid_set_volume(15);
-
-  Serial.begin(31250);
 }
 
 void handle_midi_input(Stream *midi_port) {
@@ -1201,7 +1239,7 @@ void handle_midi_input(Stream *midi_port) {
 
         case 127:
           if (controller_value == 127) {
-            handle_state_dump_request();
+            handle_state_dump_request(true);
           }
           break;
         }
@@ -1243,8 +1281,36 @@ void handle_midi_input(Stream *midi_port) {
   }
 }
 
-void loop () {
+void setup() {
+  DDRF = 0B01110011; // initialize 5 PORTF pins as output (connected to A0-A4)
+  DDRB = 0B11111111; // initialize 8 PORTB pins as output (connected to D0-D7)
+  // technically SID allows us to read from its last 4 registers, but we don't
+  // need to, so we just always keep SID's R/W pin low (signifying "write"),
+  // which seems to work ok
 
+  polyphony = 3;
+  nullify_notes_playing();
+
+  start_clock();
+
+  pinMode(ARDUINO_SID_CHIP_SELECT_PIN, OUTPUT);
+  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
+
+  sid_zero_all_registers();
+  for (int i = 0; i < MAX_POLYPHONY; i++) {
+    sid_set_pulse_width(i, DEFAULT_PULSE_WIDTH);
+    sid_set_waveform(i, DEFAULT_WAVEFORM);
+    sid_set_attack(i, DEFAULT_ATTACK);
+    sid_set_decay(i, DEFAULT_DECAY);
+    sid_set_sustain(i, DEFAULT_SUSTAIN);
+    sid_set_release(i, DEFAULT_RELEASE);
+  }
+  sid_set_volume(15);
+
+  Serial.begin(31250);
+}
+
+void loop () {
   // SID has a bug where its oscillators sometimes "leak" the sound of previous
   // notes. To work around this, we have to set each oscillator's frequency to 0
   // only when we are certain it's past its ADSR time.
