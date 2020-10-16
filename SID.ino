@@ -153,6 +153,7 @@ const byte MIDI_CHANNEL = 0; // "channel 1" (zero-indexed)
 const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_POLYPHONIC        = 0;
 const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC        = 1;
 const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC_LEGATO = 2;
+const byte MIDI_PROGRAM_CHANGE_HARDWARE_RESET                    = 127;
 
 const byte MAX_POLYPHONY = 3;
 byte polyphony = 3;
@@ -903,6 +904,8 @@ void handle_message_program_change(byte program_number) {
     polyphony = 1;
     legato_mode = true;
     break;
+  case MIDI_PROGRAM_CHANGE_HARDWARE_RESET:
+    clean_slate();
   }
 }
 
@@ -1286,20 +1289,33 @@ void handle_midi_input(Stream *midi_port) {
   }
 }
 
-void setup() {
-  DDRF = 0B01110011; // initialize 5 PORTF pins as output (connected to A0-A4)
-  DDRB = 0B11111111; // initialize 8 PORTB pins as output (connected to D0-D7)
-  // technically SID allows us to read from its last 4 registers, but we don't
-  // need to, so we just always keep SID's R/W pin low (signifying "write"),
-  // which seems to work ok
+void clean_slate() {
+  memset(sid_state_bytes, 0, 25*sizeof(*sid_state_bytes));
+  memset(notes_playing, 0, MAX_POLYPHONY*sizeof(*notes_playing));
+  memset(note_on_times, 0, MAX_POLYPHONY*sizeof(*note_on_times));
+  memset(note_off_times, 0, MAX_POLYPHONY*sizeof(*note_off_times));
+  memset(voice_detune_percents, 0, MAX_POLYPHONY*sizeof(*voice_detune_percents));
 
   polyphony = 3;
+  legato_mode = false;
+  midi_pitch_bend_max_semitones = 5;
+  current_pitchbend_amount = 0.0;
+  detune_max_semitones = 5;
+  pw_v1     = 0;
+  pw_v1_lsb = 0;
+  pw_v2     = 0;
+  pw_v2_lsb = 0;
+  pw_v3     = 0;
+  pw_v3_lsb = 0;
+  filter_frequency = 0;
+  filter_frequency_lsb = 0;
+  rpn_value = 0;
+  data_entry = 0;
+  volume_modulation_mode_active = false;
+  pulse_width_modulation_mode_active = false;
+  last_update = 0;
+
   nullify_notes_playing();
-
-  start_clock();
-
-  pinMode(ARDUINO_SID_CHIP_SELECT_PIN, OUTPUT);
-  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
 
   sid_zero_all_registers();
   for (int i = 0; i < MAX_POLYPHONY; i++) {
@@ -1311,8 +1327,23 @@ void setup() {
     sid_set_release(i, DEFAULT_RELEASE);
   }
   sid_set_volume(15);
+}
+
+void setup() {
+  DDRF = 0B01110011; // initialize 5 PORTF pins as output (connected to A0-A4)
+  DDRB = 0B11111111; // initialize 8 PORTB pins as output (connected to D0-D7)
+  // technically SID allows us to read from its last 4 registers, but we don't
+  // need to, so we just always keep SID's R/W pin low (signifying "write"),
+  // which seems to work ok
+
+  start_clock();
+
+  pinMode(ARDUINO_SID_CHIP_SELECT_PIN, OUTPUT);
+  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
 
   Serial.begin(31250);
+
+  clean_slate();
 }
 
 void loop () {
