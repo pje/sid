@@ -1311,6 +1311,9 @@ void setup() {
 }
 
 void loop () {
+  time_in_micros = micros();
+  time_in_seconds = time_in_micros / 1000000.0;
+
   // SID has a bug where its oscillators sometimes "leak" the sound of previous
   // notes. To work around this, we have to set each oscillator's frequency to 0
   // only when we are certain it's past its ADSR time.
