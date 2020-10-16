@@ -27,6 +27,7 @@ const byte SID_TRIANGLE      = 0B00010000;
 const byte SID_TEST          = 0B00001000;
 const byte SID_RING          = 0B00000100;
 const byte SID_SYNC          = 0B00000010;
+const byte SID_GATE          = 0B00000001;
 const byte SID_3OFF          = 0B10000000;
 const byte SID_FILTER_HP     = 0B01000000;
 const byte SID_FILTER_BP     = 0B00100000;
