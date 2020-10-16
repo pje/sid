@@ -872,27 +872,22 @@ void handle_message_pitchbend_change(word pitchbend) {
 }
 
 void duplicate_voice(unsigned int from_voice, unsigned int to_voice) {
-  sid_set_waveform(to_voice, get_voice_waveform(from_voice));
-  sid_set_attack(to_voice, get_attack_seconds(from_voice));
-  sid_set_decay(to_voice, get_decay_seconds(from_voice));
-  sid_set_sustain(to_voice, get_sustain_percent(from_voice));
-  sid_set_release(to_voice, get_release_seconds(from_voice));
-  sid_set_pulse_width(to_voice, get_voice_pulse_width(from_voice));
+  for (int i = 0; i < 7; i++) {
+    sid_transfer((to_voice * 7) + i, sid_state_bytes[(from_voice * 7) + i]);
+  }
+
   voice_detune_percents[to_voice] = voice_detune_percents[from_voice];
-  sid_set_test(to_voice, get_voice_test_bit(from_voice));
-  sid_set_ring_mod(to_voice, get_voice_ring_mod(from_voice));
-  sid_set_sync(to_voice, get_voice_sync(from_voice));
 }
 
 void handle_message_program_change(byte program_number) {
   switch (program_number) {
   case MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_POLYPHONIC:
     polyphony = 3;
-    duplicate_voice(0, 1);
-    duplicate_voice(0, 2);
     sid_set_gate(0, false);
     sid_set_gate(1, false);
     sid_set_gate(2, false);
+    duplicate_voice(0, 1);
+    duplicate_voice(0, 2);
     for (int i = 0; i < 3; i++) {
       notes_playing[i] = 0;
       note_on_times[i] = 0;
