@@ -481,13 +481,24 @@ void sid_transfer(byte address, byte data) {
   //
   // addr -    A4   A3   A2   -    -    A1   A0
 
-  PORTF = ((address << 2) & 0B01110000) | (address & 0B00000011);
+  byte data_for_port_f = ((address << 2) & 0B01110000) | (address & 0B00000011);
+
+  noInterrupts();
+
+  clock_high();
+  clock_low();
+  cs_low();
+  clock_high();
+
+  PORTF = data_for_port_f;
   PORTB = data;
-  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, LOW);
-  // PORTC &= 0B01111111; // faster version of digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, LOW);
-  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
+
+  clock_low();
+  cs_high();
+
+  interrupts();
+
   sid_state_bytes[address] = data;
-  // PORTC |= 0B10000000; // faster version of digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
 
   if (DEBUG_SID_TRANSFER) {
     Serial.print("sid_transfer(");
