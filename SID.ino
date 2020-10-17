@@ -8,6 +8,7 @@ typedef unsigned char byte;
 typedef unsigned int word;
 
 const bool DEBUG_SID_TRANSFER = false; // setting to true will print every SID data transfer
+const bool DEBUG_GLIDE_UPDATES = false;
 
 const int ARDUINO_SID_CHIP_SELECT_PIN = 13; // D13
 const int ARDUINO_SID_MASTER_CLOCK_PIN = 5; // D5
@@ -44,6 +45,9 @@ const byte SID_FILTER_VOICE1 = 0B00000001;
 const byte SID_FILTER_VOICE2 = 0B00000010;
 const byte SID_FILTER_VOICE3 = 0B00000100;
 const byte SID_FILTER_EXT    = 0B00001000;
+
+const double SID_MIN_OSCILLATOR_HERTZ = 16.35;
+const double SID_MAX_OSCILLATOR_HERTZ = 3951.06;
 
 const char *sid_register_short_names[25] = {
   "V1 FREQ LO ",
@@ -141,6 +145,9 @@ const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_ONE              = 64; // 7-bit 
 const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_TWO              = 72; // 7-bit value
 const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_THREE            = 80; // 7-bit value
 const byte MIDI_CONTROL_CHANGE_SET_VOLUME                        = 43; // 4-bit value
+const byte MIDI_CONTROL_CHANGE_SET_GLIDE_TIME_LSB                = 124; // 7-bit value (14-bit total)
+const byte MIDI_CONTROL_CHANGE_SET_GLIDE_TIME                    = 125; // 7-bit value (14-bit total)
+const byte MIDI_CONTROL_CHANGE_TOGGLE_ALL_TEST_BITS              = 126; // 1-bit value
 
 const byte MIDI_CONTROL_CHANGE_TOGGLE_VOLUME_MODULATION_MODE     = 81; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_TOGGLE_PULSE_WIDTH_MODULATION_MODE= 83; // 1-bit value
@@ -161,8 +168,19 @@ const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC_LEGATO = 2;
 const byte MIDI_PROGRAM_CHANGE_HARDWARE_RESET                    = 127;
 
 const byte MAX_POLYPHONY = 3;
+const double DEFAULT_PITCH_BEND_SEMITONES = 5;
+const double DEFAULT_GLIDE_TIME_MILLIS = 300.0;
+const double GLIDE_TIME_MIN_MILLIS = 1;
+const double GLIDE_TIME_MAX_MILLIS = 10000;
+
 byte polyphony = 3;
 bool legato_mode = false;
+double glide_time_millis = DEFAULT_GLIDE_TIME_MILLIS;
+word glide_time_raw_word;
+byte glide_time_raw_lsb;
+long glide_start_time_micros = 0;
+byte glide_to = 0;
+byte glide_from = 0;
 
 struct note {
   byte number;
@@ -172,7 +190,7 @@ struct note {
 
 note notes_playing[MAX_POLYPHONY]  = { { .number = 0, .on_time = 0, .off_time = 0 } };
 
-int midi_pitch_bend_max_semitones = 5;
+int midi_pitch_bend_max_semitones = DEFAULT_PITCH_BEND_SEMITONES;
 double current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
 double voice_detune_percents[MAX_POLYPHONY] = { 0.0, 0.0, 0.0 }; // [-1.0 .. 1.0]
 int detune_max_semitones = 5;
@@ -208,6 +226,7 @@ bool pulse_width_modulation_mode_active = false;
 const double PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY = 65535;
 
 long last_update = 0;
+long last_glide_update_micros = 0;
 const double update_every_micros = (100.0 / 4.41);
 
 long time_in_micros = 0;
@@ -821,13 +840,21 @@ void play_note_for_voice(byte note_number, unsigned int voice) {
   hertz = MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, hertz / 12.0);
 
   if (!volume_modulation_mode_active) {
-    if (get_voice_gate(voice) && !legato_mode) {
-      sid_set_gate(voice, false);
+    if (get_voice_gate(voice)) {
+      if (legato_mode) {
+        glide_start_time_micros = micros();
+        glide_to = note_number;
+        glide_from = notes_playing[voice].number;
+      } else {
+        sid_set_gate(voice, false);
+      }
     }
-    if (!pulse_width_modulation_mode_active) {
-      sid_set_voice_frequency(voice, hertz);
-    } else {
+    if (pulse_width_modulation_mode_active) {
       sid_set_voice_frequency(voice, PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY);
+    } else {
+      if (!legato_mode || notes_playing[voice].number == 0) {
+        sid_set_voice_frequency(voice, hertz);
+      }
     }
     if (!get_voice_gate(voice)) {
       sid_set_gate(voice, true);
@@ -874,6 +901,11 @@ void handle_message_note_off(byte note_number, byte velocity) {
       }
       notes_playing[i] = { .number = 0, .on_time = 0, .off_time = micros() };
     }
+  }
+
+  if (note_number == glide_to) {
+    glide_from = 0;
+    glide_to = 0;
   }
 }
 
@@ -1286,6 +1318,20 @@ void handle_midi_input(Stream *midi_port) {
             disable_pulse_width_modulation_mode();
           }
           break;
+        case MIDI_CONTROL_CHANGE_SET_GLIDE_TIME_LSB:
+          glide_time_raw_lsb = controller_value;
+          break;
+
+        case MIDI_CONTROL_CHANGE_SET_GLIDE_TIME: // controller_value is 7-bit
+          glide_time_raw_word = (((word)controller_value) << 7) + glide_time_raw_lsb;
+          glide_time_millis = ((glide_time_raw_word / 16383.0) * (GLIDE_TIME_MAX_MILLIS - GLIDE_TIME_MIN_MILLIS)) + GLIDE_TIME_MIN_MILLIS;
+          break;
+
+        case MIDI_CONTROL_CHANGE_TOGGLE_ALL_TEST_BITS:
+          sid_set_test(0, controller_value == 127);
+          sid_set_test(1, controller_value == 127);
+          sid_set_test(2, controller_value == 127);
+          break;
 
         case 127:
           if (controller_value == 127) {
@@ -1338,6 +1384,12 @@ void clean_slate() {
 
   polyphony = 3;
   legato_mode = false;
+  glide_time_millis = DEFAULT_GLIDE_TIME_MILLIS;
+  glide_time_raw_word = 0;
+  glide_time_raw_lsb = 0;
+  glide_start_time_micros = 0;
+  glide_to = 0;
+  glide_from = 0;
   midi_pitch_bend_max_semitones = 5;
   current_pitchbend_amount = 0.0;
   detune_max_semitones = 5;
@@ -1397,6 +1449,72 @@ void loop () {
       sid_set_voice_frequency(i, 0);
       notes_playing[i].off_time = 0;
     }
+  }
+
+  // manually update oscillator frequencies to account for glide times
+  if (legato_mode &&
+      glide_time_millis > 0 &&
+      notes_playing[0].number != 0 &&
+      ((time_in_micros - (glide_time_millis * 1000.0)) <= glide_start_time_micros) &&
+      ((time_in_micros - last_glide_update_micros) > update_every_micros)) {
+
+    double glide_duration_so_far_millis = (time_in_micros - glide_start_time_micros) / 1000.0;
+    double glide_percentage_progress = glide_duration_so_far_millis / glide_time_millis;
+    double glide_frequency_distance = 0.0;
+    double glide_hertz_to_add = 0.0;
+    double freq_after_pb_and_detune = 0.0;
+
+    for (int i = 0; i < MAX_POLYPHONY; i++) {
+      if (notes_playing[i].number != 0) {
+        freq_after_pb_and_detune = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
+        freq_after_pb_and_detune = MIDI_NOTES_TO_FREQUENCIES[glide_from] * pow(2, freq_after_pb_and_detune / 12.0);
+
+        glide_frequency_distance = MIDI_NOTES_TO_FREQUENCIES[glide_to] - MIDI_NOTES_TO_FREQUENCIES[glide_from];
+        glide_hertz_to_add = glide_frequency_distance * glide_percentage_progress;
+
+        sid_set_voice_frequency(i, (word)(freq_after_pb_and_detune + glide_hertz_to_add));
+
+        if (DEBUG_GLIDE_UPDATES && i == 0) {
+          Serial.print(time_in_micros);
+          Serial.print("  from: ");
+          Serial.print(glide_from);
+          Serial.print("  to: ");
+          Serial.print(glide_to);
+          Serial.print("  freq: ");
+          Serial.print(get_voice_frequency(i));
+          Serial.print("\n");
+          Serial.print("  glide_time_millis: ");
+          Serial.print(glide_time_millis);
+          Serial.print("\n");
+          Serial.print("  glide_from_hz: ");
+          Serial.print(MIDI_NOTES_TO_FREQUENCIES[glide_from]);
+          Serial.print("\n");
+          Serial.print("  glide_to_hz: ");
+          Serial.print(MIDI_NOTES_TO_FREQUENCIES[glide_to]);
+          Serial.print("\n");
+          Serial.print("  glide_duration_so_far_millis: ");
+          Serial.print(glide_duration_so_far_millis);
+          Serial.print("\n");
+          Serial.print("  glide_percentage_progress: ");
+          Serial.print(glide_percentage_progress);
+          Serial.print("\n");
+          Serial.print("  glide_frequency_distance: ");
+          Serial.print(glide_frequency_distance);
+          Serial.print("\n");
+          Serial.print("  glide_hertz_to_add: ");
+          Serial.print(glide_hertz_to_add);
+          Serial.print("\n");
+          Serial.print("  freq_after_pb_and_detune: ");
+          Serial.print(freq_after_pb_and_detune);
+          Serial.print("\n");
+          Serial.print("  final_frequency: ");
+          Serial.print(freq_after_pb_and_detune + glide_hertz_to_add);
+          Serial.print("\n");
+        }
+      }
+    }
+
+    last_glide_update_micros = micros();
   }
 
   // if any notes are playing in `volume_modulation_mode`, we have to implement
