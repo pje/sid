@@ -1003,7 +1003,9 @@ void float_as_padded_string(char *str, double f, signed char mantissa_chars, sig
   sprintf(str, format, str);
 
   for(unsigned int i = 0; i < len; i++) {
-    if (' ' == str[i]) str[i] = padding;
+    if (' ' == str[i]) {
+      str[i] = padding;
+    }
   }
 }
 
@@ -1633,7 +1635,9 @@ void loop () {
     ((time_in_micros - last_update) > update_every_micros)) {
     int notes_playing_count = 0;
     for (int i = 0; i < 3; i++) {
-      notes_playing[i].number != 0 && notes_playing_count++;
+      if (notes_playing[i].number != 0) {
+        notes_playing_count++;
+      }
     }
 
     for (int i = 0; i < notes_playing_count; i++) {
