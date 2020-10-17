@@ -169,7 +169,7 @@ const byte MIDI_PROGRAM_CHANGE_HARDWARE_RESET                    = 127;
 
 const byte MAX_POLYPHONY = 3;
 const double DEFAULT_PITCH_BEND_SEMITONES = 5;
-const double DEFAULT_GLIDE_TIME_MILLIS = 300.0;
+const double DEFAULT_GLIDE_TIME_MILLIS = 100.0;
 const double GLIDE_TIME_MIN_MILLIS = 1;
 const double GLIDE_TIME_MAX_MILLIS = 10000;
 
@@ -201,6 +201,9 @@ const byte DEFAULT_ATTACK = 0;
 const byte DEFAULT_DECAY = 0;
 const byte DEFAULT_SUSTAIN = 15;
 const byte DEFAULT_RELEASE = 0;
+const double DEFAULT_FILTER_FREQUENCY = 1000.0;
+const byte DEFAULT_FILTER_RESONANCE = 0;
+const byte DEFAULT_VOLUME = 15;
 
 // experimental: used to implement 14-bit resolution for PW values spread over two sequential CC messages
 word pw_v1     = 0;
@@ -466,7 +469,7 @@ double get_decay_seconds(unsigned int voice) {
 // returns float [0..1]
 double get_sustain_percent(unsigned int voice) {
   byte value = highNibble(sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_ENVELOPE_SR]);
-  return((double) value / 16.0);
+  return((double) value / 15.0);
 }
 
 double get_release_seconds(unsigned int voice) {
@@ -625,7 +628,7 @@ void sid_set_pulse_width(byte voice, word hertz) { // 12-bit value
   sid_transfer(address_hi, hi);
 }
 
-void sid_set_filter_frequency(word hertz) {
+void sid_set_filter_frequency(word hertz) { // 11-bit value
   byte lo = lowByte(hertz) & 0B00000111;
   byte hi = highByte(hertz << 5);
   sid_transfer(SID_REGISTER_ADDRESS_FILTER_FREQUENCY_LO, lo);
@@ -639,16 +642,24 @@ void sid_set_filter_resonance(byte amount) {
 }
 
 void sid_set_filter(byte voice, bool on) {
+  voice = constrain(voice, 0, 3); // allow `3` to mean "ext filt on/off"
+
   byte address = SID_REGISTER_ADDRESS_FILTER_RESONANCE;
-  byte data;
-  byte voice_filter_mask;
+  byte data = 0;
+  byte voice_filter_mask = 0;
+
   if (voice == 0) {
     voice_filter_mask = SID_FILTER_VOICE1;
   } else if(voice == 1) {
     voice_filter_mask = SID_FILTER_VOICE2;
   } else if(voice == 2) {
     voice_filter_mask = SID_FILTER_VOICE3;
+  } else if(voice == 3) { // allow `3` to mean "ext filt on/off"
+    voice_filter_mask = SID_FILTER_EXT;
+  } else {
+    return;
   }
+
   if (on) {
     data = sid_state_bytes[address] | voice_filter_mask;
   } else {
@@ -869,7 +880,9 @@ void play_note_for_voice(byte note_number, unsigned int voice) {
 void handle_message_note_on(byte note_number, byte velocity) {
   if (polyphony == 1) {
     for (int i = 0; i < MAX_POLYPHONY; i++ ) {
-      play_note_for_voice(note_number, i);
+      if (get_voice_waveform(i) != 0) {
+        play_note_for_voice(note_number, i);
+      }
     }
     return;
   }
@@ -976,12 +989,35 @@ void disable_pulse_width_modulation_mode() {
   }
 }
 
+// need this because Arduino's default `sprintf` is broken with float input :(
+void float_as_padded_string(char *str, double f, signed char mantissa_chars, signed char decimal_chars, char padding, bool left) {
+  mantissa_chars = constrain(mantissa_chars, 0, 10);
+  decimal_chars = constrain(decimal_chars, 0, 10);
+  size_t len = mantissa_chars + decimal_chars + 1;
+
+  for(int i = 0; i < len; i++) {
+    str[i] = ' ';
+  }
+
+  dtostrf(f, len, decimal_chars, str);
+
+  char format[20];
+  sprintf(format, "%%%ds", len);
+
+  sprintf(str, format, str);
+
+  for(int i = 0; i < len; i++) {
+    if (' ' == str[i]) str[i] = padding;
+  }
+}
+
 void handle_state_dump_request(bool human) {
   // for testing purposes, print the state of our sid representation, which
   // should (hopefully) mirror what the SID's registers are right now
 
   if (human) {
-    Serial.print("V#  WAVE     A    D    S    R    PW    TEST RING SYNC GATE FILT\n");
+    Serial.print("V#  WAVE     FREQ    A      D      S      R      PW   TEST RING SYNC GATE FILT\n");
+    //           "V1  Triangle 1234.56 12.345 12.345 12.345 12.345 2048 1    1    1    1    1   \n"                                                            "
     for (int i = 0; i < 3; i++) {
       Serial.print("V");
       Serial.print(i);
@@ -1000,30 +1036,49 @@ void handle_state_dump_request(bool human) {
         Serial.print("Noise   ");
       }
 
+      char float_string[] = "       ";
+
+      double f = get_voice_frequency(i);
+      // dtostrf(f, 7, 2, float_string);
+      // sprintf(float_string, "%7s", float_string);
+      // Serial.print(" ");
+      // Serial.print(float_string);
+
+      Serial.print(" ");
+      float_as_padded_string(float_string, f, 4, 2, '0', true);
+      Serial.print(float_string);
+
       double a = get_attack_seconds(i);
       double d = get_decay_seconds(i);
       double s = get_sustain_percent(i);
       double r = get_release_seconds(i);
 
       Serial.print(" ");
-      Serial.print(a);
+      float_as_padded_string(float_string, a, 2, 3, '0', true);
+      Serial.print(float_string);
+
       Serial.print(" ");
-      Serial.print(d);
+      float_as_padded_string(float_string, d, 2, 3, '0', true);
+      Serial.print(float_string);
+
       Serial.print(" ");
-      Serial.print(s);
+      sprintf(float_string, "%3d", (int)(s * 100));
+      Serial.print(float_string);
+      Serial.print("%");
+
       Serial.print(" ");
-      Serial.print(r);
-      Serial.print(" ");
-      Serial.print(get_voice_pulse_width(i));
+      float_as_padded_string(float_string, r, 2, 3, '0', true);
+      Serial.print(float_string);
+
       Serial.print(" ");
       Serial.print(get_voice_test_bit(i));
-      Serial.print("   ");
+      Serial.print("    ");
       Serial.print(get_voice_ring_mod(i));
-      Serial.print("   ");
+      Serial.print("    ");
       Serial.print(get_voice_sync(i));
-      Serial.print("   ");
+      Serial.print("    ");
       Serial.print(get_voice_gate(i));
-      Serial.print("   ");
+      Serial.print("    ");
       Serial.print(get_filter_enabled_for_voice(i));
       Serial.print("\n");
     }
@@ -1039,13 +1094,29 @@ void handle_state_dump_request(bool human) {
     Serial.print(mask & 0B01000000 ? "HP" : "--");
     Serial.print(mask & 0B00100000 ? "BP" : "--");
     Serial.print(mask & 0B00010000 ? "LP" : "--");
-
     Serial.print("\n");
+
+    Serial.print("Global Mode: ");
+
+    if (polyphony == 1 && legato_mode) {
+      Serial.print("Mono Legato");
+    } else if (polyphony == 1) {
+      Serial.print("Mono");
+    } else {
+      Serial.print("Poly");
+    }
+    if (volume_modulation_mode_active) {
+      Serial.print(" <volume modulation mode>");
+    } else if (pulse_width_modulation_mode_active) {
+      Serial.print(" <pulse width modulation mode>");
+    }
+    Serial.print("\n");
+
     Serial.print("Volume: ");
     Serial.print(get_volume());
-    Serial.print("\n\n");
+    Serial.print("\n");
 
-    Serial.print("notes_playing: {");
+    Serial.print("Notes: {");
     Serial.print(notes_playing[0].number);
     Serial.print(", ");
     Serial.print(notes_playing[1].number);
@@ -1416,7 +1487,9 @@ void clean_slate() {
     sid_set_sustain(i, DEFAULT_SUSTAIN);
     sid_set_release(i, DEFAULT_RELEASE);
   }
-  sid_set_volume(15);
+  sid_set_filter_frequency(DEFAULT_FILTER_FREQUENCY);
+  sid_set_filter_resonance(DEFAULT_FILTER_RESONANCE);
+  sid_set_volume(DEFAULT_VOLUME);
 }
 
 void setup() {
@@ -1454,7 +1527,7 @@ void loop () {
   // manually update oscillator frequencies to account for glide times
   if (legato_mode &&
       glide_time_millis > 0 &&
-      notes_playing[0].number != 0 &&
+      (notes_playing[0].number != 0 || notes_playing[1].number != 0 || notes_playing[2].number != 0 ) &&
       ((time_in_micros - (glide_time_millis * 1000.0)) <= glide_start_time_micros) &&
       ((time_in_micros - last_glide_update_micros) > update_every_micros)) {
 
@@ -1519,7 +1592,10 @@ void loop () {
 
   // if any notes are playing in `volume_modulation_mode`, we have to implement
   // ADSR stuff on our own.
-  if (volume_modulation_mode_active && notes_playing[0].number != 0 && ((time_in_micros - last_update) > update_every_micros)) {
+  if (
+    volume_modulation_mode_active &&
+    (notes_playing[0].number != 0 || notes_playing[1].number != 0 || notes_playing[2].number != 0 ) &&
+    ((time_in_micros - last_update) > update_every_micros)) {
     double volume = 0;
     double yt = 0;
     int notes_playing_count = 0;
@@ -1557,7 +1633,10 @@ void loop () {
   }
 
   // same with `pulse_width_modulation_mode`
-  if (pulse_width_modulation_mode_active && notes_playing[0].number != 0 && ((time_in_micros - last_update) > update_every_micros)) {
+  if (
+    pulse_width_modulation_mode_active &&
+    (notes_playing[0].number != 0 || notes_playing[1].number != 0 || notes_playing[2].number != 0 ) &&
+    ((time_in_micros - last_update) > update_every_micros)) {
     double volume = 0;
     double yt = 0;
     int notes_playing_count = 0;
