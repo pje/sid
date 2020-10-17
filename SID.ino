@@ -178,14 +178,14 @@ bool legato_mode = false;
 double glide_time_millis = DEFAULT_GLIDE_TIME_MILLIS;
 word glide_time_raw_word;
 byte glide_time_raw_lsb;
-long glide_start_time_micros = 0;
+unsigned long glide_start_time_micros = 0;
 byte glide_to = 0;
 byte glide_from = 0;
 
 struct note {
   byte number;
-  long on_time;
-  long off_time;
+  unsigned long on_time;
+  unsigned long off_time;
 };
 
 note notes_playing[MAX_POLYPHONY]  = { { .number = 0, .on_time = 0, .off_time = 0 } };
@@ -228,11 +228,11 @@ bool volume_modulation_mode_active = false;
 bool pulse_width_modulation_mode_active = false;
 const double PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY = 65535;
 
-long last_update = 0;
-long last_glide_update_micros = 0;
+unsigned long last_update = 0;
+unsigned long last_glide_update_micros = 0;
 const double update_every_micros = (100.0 / 4.41);
 
-long time_in_micros = 0;
+unsigned long time_in_micros = 0;
 double time_in_seconds = 0;
 
 const double sid_attack_values_to_seconds[16] = {
@@ -877,7 +877,7 @@ void play_note_for_voice(byte note_number, unsigned int voice) {
   notes_playing[voice].off_time = 0;
 }
 
-void handle_message_note_on(byte note_number, byte velocity) {
+void handle_message_note_on(byte note_number) {
   if (polyphony == 1) {
     for (int i = 0; i < MAX_POLYPHONY; i++ ) {
       if (get_voice_waveform(i) != 0) {
@@ -906,7 +906,7 @@ void handle_message_note_on(byte note_number, byte velocity) {
   play_note_for_voice(note_number, oldest_voice);
 }
 
-void handle_message_note_off(byte note_number, byte velocity) {
+void handle_message_note_off(byte note_number) {
   for (int i = 0; i < MAX_POLYPHONY; i++) {
     if (notes_playing[i].number == note_number) {
       if (!pulse_width_modulation_mode_active) {
@@ -990,14 +990,10 @@ void disable_pulse_width_modulation_mode() {
 }
 
 // need this because Arduino's default `sprintf` is broken with float input :(
-void float_as_padded_string(char *str, double f, signed char mantissa_chars, signed char decimal_chars, char padding, bool left) {
+void float_as_padded_string(char *str, double f, signed char mantissa_chars, signed char decimal_chars, char padding) {
   mantissa_chars = constrain(mantissa_chars, 0, 10);
   decimal_chars = constrain(decimal_chars, 0, 10);
   size_t len = mantissa_chars + decimal_chars + 1;
-
-  for(int i = 0; i < len; i++) {
-    str[i] = ' ';
-  }
 
   dtostrf(f, len, decimal_chars, str);
 
@@ -1006,7 +1002,7 @@ void float_as_padded_string(char *str, double f, signed char mantissa_chars, sig
 
   sprintf(str, format, str);
 
-  for(int i = 0; i < len; i++) {
+  for(unsigned int i = 0; i < len; i++) {
     if (' ' == str[i]) str[i] = padding;
   }
 }
@@ -1045,7 +1041,7 @@ void handle_state_dump_request(bool human) {
       // Serial.print(float_string);
 
       Serial.print(" ");
-      float_as_padded_string(float_string, f, 4, 2, '0', true);
+      float_as_padded_string(float_string, f, 4, 2, '0');
       Serial.print(float_string);
 
       double a = get_attack_seconds(i);
@@ -1054,11 +1050,11 @@ void handle_state_dump_request(bool human) {
       double r = get_release_seconds(i);
 
       Serial.print(" ");
-      float_as_padded_string(float_string, a, 2, 3, '0', true);
+      float_as_padded_string(float_string, a, 2, 3, '0');
       Serial.print(float_string);
 
       Serial.print(" ");
-      float_as_padded_string(float_string, d, 2, 3, '0', true);
+      float_as_padded_string(float_string, d, 2, 3, '0');
       Serial.print(float_string);
 
       Serial.print(" ");
@@ -1067,7 +1063,7 @@ void handle_state_dump_request(bool human) {
       Serial.print("%");
 
       Serial.print(" ");
-      float_as_padded_string(float_string, r, 2, 3, '0', true);
+      float_as_padded_string(float_string, r, 2, 3, '0');
       Serial.print(float_string);
 
       Serial.print(" ");
@@ -1164,7 +1160,6 @@ void handle_midi_input(Stream *midi_port) {
     byte channel = incomingByte & (0B00001111);
     byte data_byte_one = 0;
     byte data_byte_two = 0;
-    int note_voice = 0;
     word pitchbend = 8192.0;
     byte controller_number = 0;
     byte controller_value = 0;
@@ -1431,17 +1426,17 @@ void handle_midi_input(Stream *midi_port) {
         while (midi_port->available() <= 0) {}
         data_byte_one = midi_port->read();
         while (midi_port->available() <= 0) {}
-        data_byte_two = midi_port->read();
+        data_byte_two = midi_port->read(); // "velocity", which we don't use
         if (data_byte_one < 96) { // SID can't handle freqs > B7
-          handle_message_note_on(data_byte_one, data_byte_two);
+          handle_message_note_on(data_byte_one);
         }
         break;
       case MIDI_NOTE_OFF:
         while (midi_port->available() <= 0) {}
         data_byte_one = midi_port->read();
         while (midi_port->available() <= 0) {}
-        data_byte_two = midi_port->read();
-        handle_message_note_off(data_byte_one, data_byte_two);
+        data_byte_two = midi_port->read(); // "velocity", which we don't use
+        handle_message_note_off(data_byte_one);
         break;
       }
     }
@@ -1597,7 +1592,6 @@ void loop () {
     (notes_playing[0].number != 0 || notes_playing[1].number != 0 || notes_playing[2].number != 0 ) &&
     ((time_in_micros - last_update) > update_every_micros)) {
     double volume = 0;
-    double yt = 0;
     int notes_playing_count = 0;
     for (int i = 0; i < 3; i++) {
       notes_playing[i].number != 0 && notes_playing_count++;
@@ -1637,8 +1631,6 @@ void loop () {
     pulse_width_modulation_mode_active &&
     (notes_playing[0].number != 0 || notes_playing[1].number != 0 || notes_playing[2].number != 0 ) &&
     ((time_in_micros - last_update) > update_every_micros)) {
-    double volume = 0;
-    double yt = 0;
     int notes_playing_count = 0;
     for (int i = 0; i < 3; i++) {
       notes_playing[i].number != 0 && notes_playing_count++;
