@@ -9,8 +9,10 @@ deps:
 check-board:
 	arduino-cli board list | grep "$(BOARD_PORT)"
 
+BUILD_PROPERTIES=$(shell arduino-cli compile --fqbn arduino:avr:micro --show-properties | grep 'compiler.cpp.flags=' | sed 's/fpermissive/fno-permissive/; s/{compiler.warning_flags}/-Wpedantic/; s/std=gnu++11/std=gnu++17/')
+
 build:
-	arduino-cli compile --fqbn arduino:avr:micro --verbose SID.ino
+	arduino-cli compile --fqbn arduino:avr:micro --verbose --build-properties "compiler.warning_flags=-Wpedantic,$(BUILD_PROPERTIES)" SID.ino
 
 upload: check-board build
 	arduino-cli upload --port "$(BOARD_PORT)" --fqbn arduino:avr:micro --verbose SID.ino
