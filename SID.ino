@@ -6,8 +6,8 @@
 #include "util.h"
 #include "deque.h"
 
-const bool DEBUG_SID_TRANSFER = false; // setting to true will print every SID data transfer
-const bool DEBUG_GLIDE_UPDATES = false;
+bool debug_sid_transfer = false; // setting to true will print every SID data transfer
+bool debug_glide_updates = false;
 
 const int ARDUINO_SID_CHIP_SELECT_PIN = 13; // D13
 const int ARDUINO_SID_MASTER_CLOCK_PIN = 5; // D5
@@ -144,6 +144,7 @@ const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_ONE              = 64; // 7-bit 
 const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_TWO              = 72; // 7-bit value
 const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_THREE            = 80; // 7-bit value
 const byte MIDI_CONTROL_CHANGE_SET_VOLUME                        = 43; // 4-bit value
+const byte MIDI_CONTROL_CHANGE_TOGGLE_SID_TRANSFER_DEBUGGING     = 119; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_SET_GLIDE_TIME_LSB                = 124; // 7-bit value (14-bit total)
 const byte MIDI_CONTROL_CHANGE_SET_GLIDE_TIME                    = 125; // 7-bit value (14-bit total)
 const byte MIDI_CONTROL_CHANGE_TOGGLE_ALL_TEST_BITS              = 126; // 1-bit value
@@ -159,6 +160,10 @@ const word MIDI_RPN_PITCH_BEND_SENSITIVITY                       = 0;
 const word MIDI_RPN_MASTER_FINE_TUNING                           = 1;
 const word MIDI_RPN_MASTER_COARSE_TUNING                         = 2;
 const word MIDI_RPN_NULL                                         = 16383;
+
+// below are CC numbers that are defined and we don't implement, but repurposing
+// them in the future might have weird consequences, so we shouldn't
+const byte MIDI_CONTROL_CHANGE_ALL_NOTES_OFF                     = 123;
 
 const byte MIDI_CHANNEL = 0; // "channel 1" (zero-indexed)
 const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_POLYPHONIC        = 0;
@@ -198,7 +203,7 @@ const byte DEFAULT_DECAY = 0;
 const byte DEFAULT_SUSTAIN = 15;
 const byte DEFAULT_RELEASE = 0;
 const double DEFAULT_FILTER_FREQUENCY = 1000.0;
-const byte DEFAULT_FILTER_RESONANCE = 0;
+const byte DEFAULT_FILTER_RESONANCE = 15;
 const byte DEFAULT_VOLUME = 15;
 
 // experimental: used to implement 14-bit resolution for PW values spread over two sequential CC messages
@@ -412,10 +417,15 @@ void cs_low() {
   SREG = oldSREG;
 }
 
+word get_voice_frequency_register_value(unsigned int voice) {
+  word value = sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_HI];
+  value <<= 8;
+  value += sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_LO];
+  return value;
+}
+
 double get_voice_frequency(unsigned int voice) {
-  word frequency = sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_HI];
-  frequency <<= 8;
-  frequency += sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_LO];
+  word frequency = get_voice_frequency_register_value(voice);
   double hertz = frequency * CLOCK_SIGNAL_FACTOR;
   return(hertz);
 }
@@ -500,6 +510,31 @@ bool get_filter_enabled_for_voice(unsigned int voice) {
 void sid_transfer(byte address, byte data) {
   address &= 0B00011111;
 
+  // optimization: don't send anything if SID already has that data in that register
+  if (sid_state_bytes[address] == data) {
+    if (debug_sid_transfer) {
+      char addr_str[6];
+      addr_str[0] = '\0';
+      for (int j = 16; j > 0; j >>= 1) {
+        strcat(addr_str, ((address & j) == j) ? "1" : "0");
+      }
+
+      char data_str[9];
+      data_str[0] = '\0';
+      for (int j = 128; j > 0; j >>= 1) {
+        strcat(data_str, ((data & j) == j) ? "1" : "0");
+      }
+
+      Serial.print("  ignoring unneeded sid_transfer(");
+      Serial.print(addr_str);
+      Serial.print(", ");
+      Serial.print(data_str);
+      Serial.print(")\n");
+    }
+
+    return;
+  }
+
   // PORTF is a weird 6-bit register (8 bits, but bits 2 and 3 don't exist)
   //
   // Port F Data Register — PORTF
@@ -527,11 +562,23 @@ void sid_transfer(byte address, byte data) {
 
   sid_state_bytes[address] = data;
 
-  if (DEBUG_SID_TRANSFER) {
-    Serial.print("sid_transfer(");
-    Serial.print(address, BIN);
+  if (debug_sid_transfer) {
+    char addr_str[6];
+    addr_str[0] = '\0';
+    for (int j = 16; j > 0; j >>= 1) {
+      strcat(addr_str, ((address & j) == j) ? "1" : "0");
+    }
+
+    char data_str[9];
+    data_str[0] = '\0';
+    for (int j = 128; j > 0; j >>= 1) {
+      strcat(data_str, ((data & j) == j) ? "1" : "0");
+    }
+
+    Serial.print("  sid_transfer(");
+    Serial.print(addr_str);
     Serial.print(", ");
-    Serial.print(data, BIN);
+    Serial.print(data_str);
     Serial.print(")\n");
   }
 }
@@ -684,10 +731,17 @@ void sid_set_voice_frequency(int voice, double hertz) {
   word frequency = (hertz / CLOCK_SIGNAL_FACTOR);
   byte loFrequency = lowByte(frequency);
   byte hiFrequency = highByte(frequency);
-  byte loAddress = (voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_LO;
-  byte hiAddress = (voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_HI;
-  sid_transfer(loAddress, loFrequency);
-  sid_transfer(hiAddress, hiFrequency);
+
+  // optimization: if the voice's frequency hasn't changed, don't send it
+  word prev = get_voice_frequency_register_value(voice);
+  if (loFrequency != lowByte(prev)) {
+    byte loAddress = (voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_LO;
+    sid_transfer(loAddress, loFrequency);
+  }
+  if (hiFrequency != highByte(prev)) {
+    byte hiAddress = (voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_HI;
+    sid_transfer(hiAddress, hiFrequency);
+  }
 }
 
 void sid_set_gate(int voice, bool state) {
@@ -785,9 +839,17 @@ void handle_message_voice_waveform_change(byte voice, byte waveform, bool on) {
 
 void handle_message_voice_filter_change(byte voice, bool on) {
   if (polyphony > 1) {
-    for (int i = 0; i < 3; i++) {
-      sid_set_filter(i, on);
+    byte address = SID_REGISTER_ADDRESS_FILTER_RESONANCE;
+    byte data = 0;
+    byte voice_filter_mask = (SID_FILTER_VOICE1 | SID_FILTER_VOICE2 | SID_FILTER_VOICE3);
+
+    if (on) {
+      data = sid_state_bytes[address] | voice_filter_mask;
+    } else {
+      data = sid_state_bytes[address] & ~voice_filter_mask;
     }
+
+    sid_transfer(address, data);
   } else {
     sid_set_filter(voice, on);
   }
@@ -1023,7 +1085,7 @@ void handle_state_dump_request(bool human) {
   // should (hopefully) mirror what the SID's registers are right now
 
   if (human) {
-    Serial.print("V#  WAVE     FREQ    A      D      S      R      PW   TEST RING SYNC GATE FILT\n");
+    Serial.print("V#  WAVE     FREQ    A      D      S    R      PW   TEST RING SYNC GATE FILT\n");
     //           "V1  Triangle 1234.56 12.345 12.345 12.345 12.345 2048 1    1    1    1    1   \n"                                                            "
     for (int i = 0; i < 3; i++) {
       Serial.print("V");
@@ -1182,6 +1244,18 @@ void handle_midi_input(Stream *midi_port) {
         controller_number = midi_port->read();
         while (midi_port->available() <= 0) {}
         controller_value = midi_port->read();
+
+        if (debug_sid_transfer) {
+          Serial.print("\n");
+          Serial.print("[");
+          Serial.print(time_in_micros);
+          Serial.print("] ");
+          Serial.print("Received MIDI CC ");
+          Serial.print(controller_number);
+          Serial.print(" ");
+          Serial.print(controller_value);
+          Serial.print("\n");
+        }
 
         switch (controller_number) {
         case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_SQUARE:
@@ -1395,6 +1469,11 @@ void handle_midi_input(Stream *midi_port) {
             disable_pulse_width_modulation_mode();
           }
           break;
+
+        case MIDI_CONTROL_CHANGE_TOGGLE_SID_TRANSFER_DEBUGGING:
+          debug_sid_transfer = (controller_value == 127);
+          break;
+
         case MIDI_CONTROL_CHANGE_SET_GLIDE_TIME_LSB:
           glide_time_raw_lsb = controller_value;
           break;
@@ -1420,6 +1499,17 @@ void handle_midi_input(Stream *midi_port) {
       case MIDI_PROGRAM_CHANGE:
         while (midi_port->available() <= 0) {}
         data_byte_one = midi_port->read();
+
+        if (debug_sid_transfer) {
+          Serial.print("\n");
+          Serial.print("[");
+          Serial.print(time_in_micros);
+          Serial.print("] ");
+          Serial.print("Received MIDI PC ");
+          Serial.print(data_byte_one);
+          Serial.print("\n");
+        }
+
         handle_message_program_change(data_byte_one);
         break;
 
@@ -1431,6 +1521,17 @@ void handle_midi_input(Stream *midi_port) {
         pitchbend = data_byte_two;
         pitchbend = (pitchbend << 7);
         pitchbend |= data_byte_one;
+
+        if (debug_sid_transfer) {
+          Serial.print("\n");
+          Serial.print("[");
+          Serial.print(time_in_micros);
+          Serial.print("] ");
+          Serial.print("Received MIDI PB ");
+          Serial.print(pitchbend);
+          Serial.print("\n");
+        }
+
         handle_message_pitchbend_change(pitchbend);
         break;
       case MIDI_NOTE_ON:
@@ -1438,6 +1539,17 @@ void handle_midi_input(Stream *midi_port) {
         data_byte_one = midi_port->read();
         while (midi_port->available() <= 0) {}
         data_byte_two = midi_port->read(); // "velocity", which we don't use
+
+        if (debug_sid_transfer) {
+          Serial.print("\n");
+          Serial.print("[");
+          Serial.print(time_in_micros);
+          Serial.print("] ");
+          Serial.print("Received MIDI Note On ");
+          Serial.print(data_byte_one);
+          Serial.print("\n");
+        }
+
         if (data_byte_one < 96) { // SID can't handle freqs > B7
           handle_message_note_on(data_byte_one);
         }
@@ -1447,6 +1559,17 @@ void handle_midi_input(Stream *midi_port) {
         data_byte_one = midi_port->read();
         while (midi_port->available() <= 0) {}
         data_byte_two = midi_port->read(); // "velocity", which we don't use
+
+        if (debug_sid_transfer) {
+          Serial.print("\n");
+          Serial.print("[");
+          Serial.print(time_in_micros);
+          Serial.print("] ");
+          Serial.print("Received MIDI Note Off ");
+          Serial.print(data_byte_one);
+          Serial.print("\n");
+        }
+
         handle_message_note_off(data_byte_one);
         break;
       }
@@ -1553,7 +1676,7 @@ void loop () {
 
         sid_set_voice_frequency(i, (word)(freq_after_pb_and_detune + glide_hertz_to_add));
 
-        if (DEBUG_GLIDE_UPDATES && i == 0) {
+        if (debug_glide_updates && i == 0) {
           Serial.print(time_in_micros);
           Serial.print("  from: ");
           Serial.print(glide_from);
