@@ -1018,7 +1018,7 @@ void handle_state_dump_request(bool human) {
   // should (hopefully) mirror what the SID's registers are right now
 
   if (human) {
-    Serial.print("V#  WAVE     FREQ    A      D      S      R      PW   TEST RING SYNC GATE FILT\n");
+    Serial.print("V#  WAVE     FREQ    A      D      S    R      PW   TEST RING SYNC GATE FILT\n");
     //           "V1  Triangle 1234.56 12.345 12.345 12.345 12.345 2048 1    1    1    1    1   \n"                                                            "
     for (int i = 0; i < 3; i++) {
       Serial.print("V");
