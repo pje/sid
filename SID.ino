@@ -206,7 +206,7 @@ const byte DEFAULT_DECAY = 0;
 const byte DEFAULT_SUSTAIN = 15;
 const byte DEFAULT_RELEASE = 0;
 const double DEFAULT_FILTER_FREQUENCY = 1000.0;
-const byte DEFAULT_FILTER_RESONANCE = 0;
+const byte DEFAULT_FILTER_RESONANCE = 15;
 const byte DEFAULT_VOLUME = 15;
 
 // experimental: used to implement 14-bit resolution for PW values spread over two sequential CC messages
