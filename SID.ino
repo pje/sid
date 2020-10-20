@@ -161,6 +161,10 @@ const word MIDI_RPN_MASTER_FINE_TUNING                           = 1;
 const word MIDI_RPN_MASTER_COARSE_TUNING                         = 2;
 const word MIDI_RPN_NULL                                         = 16383;
 
+// below are CC numbers that are defined and we don't implement, but repurposing
+// them in the future might have weird consequences, so we shouldn't
+const byte MIDI_CONTROL_CHANGE_ALL_NOTES_OFF                     = 123;
+
 const byte MIDI_CHANNEL = 0; // "channel 1" (zero-indexed)
 const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_POLYPHONIC        = 0;
 const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC        = 1;
