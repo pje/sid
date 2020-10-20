@@ -17,13 +17,13 @@ check-board:
 	arduino-cli board list | grep "$(BOARD_PORT)"
 
 build:
-	arduino-cli compile --fqbn arduino:avr:micro --verbose --build-properties "compiler.warning_flags=-Wpedantic,$(BUILD_PROPERTIES)" SID.cpp
+	arduino-cli compile --fqbn arduino:avr:micro --verbose --build-properties "compiler.warning_flags=-Wpedantic,$(BUILD_PROPERTIES)" SID.ino
 
 upload: check-board build
-	arduino-cli upload --port "$(BOARD_PORT)" --fqbn arduino:avr:micro --verbose SID.cpp
+	arduino-cli upload --port "$(BOARD_PORT)" --fqbn arduino:avr:micro --verbose SID.ino
 
 format:
-	clang-format -i SID.cpp $(SOURCES) $(HEADERS)
+	clang-format -i SID.ino $(SOURCES) $(HEADERS)
 
 test/runner: test/test.c $(SOURCES) $(HEADERS)
 	clang -std=c11 -Wall -Wextra --debug -g3 -rdynamic $(SOURCES) test/test.c -o test/runner
