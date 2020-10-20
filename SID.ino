@@ -7,8 +7,8 @@
 typedef unsigned char byte;
 typedef unsigned int word;
 
-const bool DEBUG_SID_TRANSFER = false; // setting to true will print every SID data transfer
-const bool DEBUG_GLIDE_UPDATES = false;
+bool debug_sid_transfer = false; // setting to true will print every SID data transfer
+bool debug_glide_updates = false;
 
 const int ARDUINO_SID_CHIP_SELECT_PIN = 13; // D13
 const int ARDUINO_SID_MASTER_CLOCK_PIN = 5; // D5
@@ -145,6 +145,7 @@ const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_ONE              = 64; // 7-bit 
 const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_TWO              = 72; // 7-bit value
 const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_THREE            = 80; // 7-bit value
 const byte MIDI_CONTROL_CHANGE_SET_VOLUME                        = 43; // 4-bit value
+const byte MIDI_CONTROL_CHANGE_TOGGLE_SID_TRANSFER_DEBUGGING     = 119; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_SET_GLIDE_TIME_LSB                = 124; // 7-bit value (14-bit total)
 const byte MIDI_CONTROL_CHANGE_SET_GLIDE_TIME                    = 125; // 7-bit value (14-bit total)
 const byte MIDI_CONTROL_CHANGE_TOGGLE_ALL_TEST_BITS              = 126; // 1-bit value
@@ -535,11 +536,23 @@ void sid_transfer(byte address, byte data) {
 
   sid_state_bytes[address] = data;
 
-  if (DEBUG_SID_TRANSFER) {
-    Serial.print("sid_transfer(");
-    Serial.print(address, BIN);
+  if (debug_sid_transfer) {
+    char addr_str[6];
+    addr_str[0] = '\0';
+    for (int j = 16; j > 0; j >>= 1) {
+      strcat(addr_str, ((address & j) == j) ? "1" : "0");
+    }
+
+    char data_str[9];
+    data_str[0] = '\0';
+    for (int j = 128; j > 0; j >>= 1) {
+      strcat(data_str, ((data & j) == j) ? "1" : "0");
+    }
+
+    Serial.print("  sid_transfer(");
+    Serial.print(addr_str);
     Serial.print(", ");
-    Serial.print(data, BIN);
+    Serial.print(data_str);
     Serial.print(")\n");
   }
 }
@@ -1178,6 +1191,18 @@ void handle_midi_input(Stream *midi_port) {
         while (midi_port->available() <= 0) {}
         controller_value = midi_port->read();
 
+        if (debug_sid_transfer) {
+          Serial.print("\n");
+          Serial.print("[");
+          Serial.print(time_in_micros);
+          Serial.print("] ");
+          Serial.print("Received MIDI CC ");
+          Serial.print(controller_number);
+          Serial.print(" ");
+          Serial.print(controller_value);
+          Serial.print("\n");
+        }
+
         switch (controller_number) {
         case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_SQUARE:
           handle_message_voice_waveform_change(0, SID_SQUARE, controller_value == 127);
@@ -1390,6 +1415,11 @@ void handle_midi_input(Stream *midi_port) {
             disable_pulse_width_modulation_mode();
           }
           break;
+
+        case MIDI_CONTROL_CHANGE_TOGGLE_SID_TRANSFER_DEBUGGING:
+          debug_sid_transfer = (controller_value == 127);
+          break;
+
         case MIDI_CONTROL_CHANGE_SET_GLIDE_TIME_LSB:
           glide_time_raw_lsb = controller_value;
           break;
@@ -1415,6 +1445,17 @@ void handle_midi_input(Stream *midi_port) {
       case MIDI_PROGRAM_CHANGE:
         while (midi_port->available() <= 0) {}
         data_byte_one = midi_port->read();
+
+        if (debug_sid_transfer) {
+          Serial.print("\n");
+          Serial.print("[");
+          Serial.print(time_in_micros);
+          Serial.print("] ");
+          Serial.print("Received MIDI PC ");
+          Serial.print(data_byte_one);
+          Serial.print("\n");
+        }
+
         handle_message_program_change(data_byte_one);
         break;
 
@@ -1426,6 +1467,17 @@ void handle_midi_input(Stream *midi_port) {
         pitchbend = data_byte_two;
         pitchbend = (pitchbend << 7);
         pitchbend |= data_byte_one;
+
+        if (debug_sid_transfer) {
+          Serial.print("\n");
+          Serial.print("[");
+          Serial.print(time_in_micros);
+          Serial.print("] ");
+          Serial.print("Received MIDI PB ");
+          Serial.print(pitchbend);
+          Serial.print("\n");
+        }
+
         handle_message_pitchbend_change(pitchbend);
         break;
       case MIDI_NOTE_ON:
@@ -1433,6 +1485,17 @@ void handle_midi_input(Stream *midi_port) {
         data_byte_one = midi_port->read();
         while (midi_port->available() <= 0) {}
         data_byte_two = midi_port->read(); // "velocity", which we don't use
+
+        if (debug_sid_transfer) {
+          Serial.print("\n");
+          Serial.print("[");
+          Serial.print(time_in_micros);
+          Serial.print("] ");
+          Serial.print("Received MIDI Note On ");
+          Serial.print(data_byte_one);
+          Serial.print("\n");
+        }
+
         if (data_byte_one < 96) { // SID can't handle freqs > B7
           handle_message_note_on(data_byte_one);
         }
@@ -1442,6 +1505,17 @@ void handle_midi_input(Stream *midi_port) {
         data_byte_one = midi_port->read();
         while (midi_port->available() <= 0) {}
         data_byte_two = midi_port->read(); // "velocity", which we don't use
+
+        if (debug_sid_transfer) {
+          Serial.print("\n");
+          Serial.print("[");
+          Serial.print(time_in_micros);
+          Serial.print("] ");
+          Serial.print("Received MIDI Note Off ");
+          Serial.print(data_byte_one);
+          Serial.print("\n");
+        }
+
         handle_message_note_off(data_byte_one);
         break;
       }
@@ -1548,7 +1622,7 @@ void loop () {
 
         sid_set_voice_frequency(i, (word)(freq_after_pb_and_detune + glide_hertz_to_add));
 
-        if (DEBUG_GLIDE_UPDATES && i == 0) {
+        if (debug_glide_updates && i == 0) {
           Serial.print(time_in_micros);
           Serial.print("  from: ");
           Serial.print(glide_from);
