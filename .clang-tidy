@@ -1,1 +1,0 @@
-Checks: '*,-cppcoreguidelines-avoid-magic-numbers,-hicpp-signed-bitwise,-readability-magic-numbers,-llvm-header-guard,-readability-else-after-return'
