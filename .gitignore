@@ -2,3 +2,4 @@ build*/
 *.orig
 test/runner
 compile_commands.json
+.clangd/
