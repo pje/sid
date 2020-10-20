@@ -2,10 +2,9 @@
 #include <avr/io.h>
 #include <math.h>
 #include <usbmidi.h>
+#include "note.h"
 #include "util.h"
-
-typedef unsigned char byte;
-typedef unsigned int word;
+#include "deque.h"
 
 const bool DEBUG_SID_TRANSFER = false; // setting to true will print every SID data transfer
 const bool DEBUG_GLIDE_UPDATES = false;
@@ -182,13 +181,10 @@ unsigned long glide_start_time_micros = 0;
 byte glide_to = 0;
 byte glide_from = 0;
 
-struct note {
-  byte number;
-  unsigned long on_time;
-  unsigned long off_time;
-};
+struct note *deque_index[MAX_POLYPHONY] = { NULL, NULL, NULL };
 
-note notes_playing[MAX_POLYPHONY]  = { { .number = 0, .on_time = 0, .off_time = 0 } };
+struct note oscillator_notes[3] = { { .number = 0, .on_time = 0, .off_time = 0 } };
+deque *notes = (struct deque*) malloc(sizeof(deque));
 
 int midi_pitch_bend_max_semitones = DEFAULT_PITCH_BEND_SEMITONES;
 double current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
@@ -721,8 +717,10 @@ void start_clock() {
 
 void nullify_notes_playing() {
   for (int i = 0; i < MAX_POLYPHONY; i++) {
-    notes_playing[i] = { .number = 0, .on_time = 0, .off_time = 0 };
+    oscillator_notes[i] = { .number = 0, .on_time = 0, .off_time = 0 };
   }
+
+  deque_initialize(notes, 127, _note_indexer, _note_node_print_function);
 }
 
 void handle_message_voice_attack_change(byte voice, byte envelope_value) {
@@ -838,7 +836,7 @@ void handle_message_voice_test_change(byte voice, bool on) {
 void handle_message_voice_detune_change(byte voice, double detune_factor) {
   voice_detune_percents[voice] = detune_factor;
   double semitone_change = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[voice] * detune_max_semitones);
-  double frequency = MIDI_NOTES_TO_FREQUENCIES[notes_playing[voice].number] * pow(2, semitone_change / 12.0);
+  double frequency = MIDI_NOTES_TO_FREQUENCIES[oscillator_notes[voice].number] * pow(2, semitone_change / 12.0);
   sid_set_voice_frequency(voice, frequency);
 }
 
@@ -847,34 +845,44 @@ void handle_message_voice_detune_change(byte voice, double detune_factor) {
 // - will first de-gate the oscillator iff it's not already de-gated for some reason
 // - handles global modulation modes (if we're in volume mod mode, we don't actually interact with the voice.)
 void play_note_for_voice(byte note_number, unsigned int voice) {
+  unsigned long now = micros();
   double hertz = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[voice] * detune_max_semitones);
   hertz = MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, hertz / 12.0);
 
   if (!volume_modulation_mode_active) {
     if (get_voice_gate(voice)) {
       if (legato_mode) {
-        glide_start_time_micros = micros();
+        glide_start_time_micros = now;
         glide_to = note_number;
-        glide_from = notes_playing[voice].number;
+        glide_from = oscillator_notes[voice].number;
       } else {
         sid_set_gate(voice, false);
       }
     }
+
     if (pulse_width_modulation_mode_active) {
       sid_set_voice_frequency(voice, PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY);
     } else {
-      if (!legato_mode || notes_playing[voice].number == 0) {
+      if (!legato_mode || oscillator_notes[voice].number == 0) {
         sid_set_voice_frequency(voice, hertz);
       }
     }
+
     if (!get_voice_gate(voice)) {
       sid_set_gate(voice, true);
-      notes_playing[voice].on_time = micros();
+      oscillator_notes[voice].on_time = now;
     }
   }
 
-  notes_playing[voice].number = note_number;
-  notes_playing[voice].off_time = 0;
+  note* n = (note*) malloc(sizeof(note));
+  n->number = note_number;
+  n->on_time = now;
+  n->off_time = 0;
+  deque_append(notes, n);
+
+  oscillator_notes[voice].number = note_number;
+  deque_index[voice] = n;
+  oscillator_notes[voice].off_time = 0;
 }
 
 void handle_message_note_on(byte note_number) {
@@ -890,7 +898,7 @@ void handle_message_note_on(byte note_number) {
   // we're poly, so every voice has its own frequency.
   // if there's a free voice, we can just use that.
   for (int i = 0; i < polyphony; i++) {
-    if (notes_playing[i].number == 0) {
+    if (oscillator_notes[i].number == 0) {
       play_note_for_voice(note_number, i);
       return;
     }
@@ -899,7 +907,7 @@ void handle_message_note_on(byte note_number) {
   // there are no free voices, so find the oldest one and replace it.
   unsigned int oldest_voice = 0;
   for (int i = 1; i < polyphony; i++) {
-    if (notes_playing[i].number != 0 && notes_playing[i].on_time < notes_playing[oldest_voice].on_time) {
+    if (oscillator_notes[i].number != 0 && oscillator_notes[i].on_time < oscillator_notes[oldest_voice].on_time) {
       oldest_voice = i;
     }
   }
@@ -907,12 +915,13 @@ void handle_message_note_on(byte note_number) {
 }
 
 void handle_message_note_off(byte note_number) {
+  unsigned long now = micros();
   for (int i = 0; i < MAX_POLYPHONY; i++) {
-    if (notes_playing[i].number == note_number) {
+    if (oscillator_notes[i].number == note_number) {
       if (!pulse_width_modulation_mode_active) {
         sid_set_gate(i, false);
       }
-      notes_playing[i] = { .number = 0, .on_time = 0, .off_time = micros() };
+      oscillator_notes[i] = { .number = 0, .on_time = 0, .off_time = now };
     }
   }
 
@@ -926,9 +935,9 @@ void handle_message_pitchbend_change(word pitchbend) {
   double temp_double = 0.0;
   current_pitchbend_amount = ((pitchbend / 8192.0) - 1); // 8192 is the "neutral" pitchbend value (half of 2**14)
   for (int i = 0; i < MAX_POLYPHONY; i++) {
-    if (notes_playing[i].number != 0) {
+    if (oscillator_notes[i].number != 0) {
       temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
-      temp_double = MIDI_NOTES_TO_FREQUENCIES[notes_playing[i].number] * pow(2, temp_double / 12.0);
+      temp_double = MIDI_NOTES_TO_FREQUENCIES[oscillator_notes[i].number] * pow(2, temp_double / 12.0);
       if (!pulse_width_modulation_mode_active){
         sid_set_voice_frequency(i, temp_double);
       }
@@ -954,7 +963,7 @@ void handle_message_program_change(byte program_number) {
     duplicate_voice(0, 1);
     duplicate_voice(0, 2);
     for (int i = 0; i < 3; i++) {
-      notes_playing[i] = { .number = 0, .on_time = 0, .off_time = 0 };
+      oscillator_notes[i] = { .number = 0, .on_time = 0, .off_time = 0 };
     }
     legato_mode = false;
     break;
@@ -1115,27 +1124,27 @@ void handle_state_dump_request(bool human) {
     Serial.print("\n");
 
     Serial.print("Notes: {");
-    Serial.print(notes_playing[0].number);
+    Serial.print(oscillator_notes[0].number);
     Serial.print(", ");
-    Serial.print(notes_playing[1].number);
+    Serial.print(oscillator_notes[1].number);
     Serial.print(", ");
-    Serial.print(notes_playing[2].number);
+    Serial.print(oscillator_notes[2].number);
     Serial.print("}\n");
 
     Serial.print("note_on_times: {");
-    Serial.print(notes_playing[0].on_time);
+    Serial.print(oscillator_notes[0].on_time);
     Serial.print(", ");
-    Serial.print(notes_playing[1].on_time);
+    Serial.print(oscillator_notes[1].on_time);
     Serial.print(", ");
-    Serial.print(notes_playing[2].on_time);
+    Serial.print(oscillator_notes[2].on_time);
     Serial.print("}\n");
 
     Serial.print("note_off_times: {");
-    Serial.print(notes_playing[0].off_time);
+    Serial.print(oscillator_notes[0].off_time);
     Serial.print(", ");
-    Serial.print(notes_playing[1].off_time);
+    Serial.print(oscillator_notes[1].off_time);
     Serial.print(", ");
-    Serial.print(notes_playing[2].off_time);
+    Serial.print(oscillator_notes[2].off_time);
     Serial.print("}\n");
 
   } else {
@@ -1514,17 +1523,17 @@ void loop () {
   // notes. To work around this, we have to set each oscillator's frequency to 0
   // only when we are certain it's past its ADSR time.
   for (int i = 0; i < 3; i++) {
-    if (notes_playing[i].number == 0 && notes_playing[i].off_time > 0 && (time_in_micros > (notes_playing[i].off_time + get_release_seconds(i) * 1000000.0))) {
+    if (oscillator_notes[i].number == 0 && oscillator_notes[i].off_time > 0 && (time_in_micros > (oscillator_notes[i].off_time + get_release_seconds(i) * 1000000.0))) {
       // we're past the release phase, so the voice can't be making any noise, so we must "fully" silence it
       sid_set_voice_frequency(i, 0);
-      notes_playing[i].off_time = 0;
+      oscillator_notes[i].off_time = 0;
     }
   }
 
   // manually update oscillator frequencies to account for glide times
   if (legato_mode &&
       glide_time_millis > 0 &&
-      (notes_playing[0].number != 0 || notes_playing[1].number != 0 || notes_playing[2].number != 0 ) &&
+      (oscillator_notes[0].number != 0 || oscillator_notes[1].number != 0 || oscillator_notes[2].number != 0 ) &&
       ((time_in_micros - (glide_time_millis * 1000.0)) <= glide_start_time_micros) &&
       ((time_in_micros - last_glide_update_micros) > update_every_micros)) {
 
@@ -1535,7 +1544,7 @@ void loop () {
     double freq_after_pb_and_detune = 0.0;
 
     for (int i = 0; i < MAX_POLYPHONY; i++) {
-      if (notes_playing[i].number != 0) {
+      if (oscillator_notes[i].number != 0) {
         freq_after_pb_and_detune = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
         freq_after_pb_and_detune = MIDI_NOTES_TO_FREQUENCIES[glide_from] * pow(2, freq_after_pb_and_detune / 12.0);
 
@@ -1591,16 +1600,16 @@ void loop () {
   // ADSR stuff on our own.
   if (
     volume_modulation_mode_active &&
-    (notes_playing[0].number != 0 || notes_playing[1].number != 0 || notes_playing[2].number != 0 ) &&
+    (oscillator_notes[0].number != 0 || oscillator_notes[1].number != 0 || oscillator_notes[2].number != 0 ) &&
     ((time_in_micros - last_update) > update_every_micros)) {
     double volume = 0;
-    int notes_playing_count = 0;
+    int oscillator_notes_count = 0;
     for (int i = 0; i < 3; i++) {
-      notes_playing[i].number != 0 && notes_playing_count++;
+      oscillator_notes[i].number != 0 && oscillator_notes_count++;
     }
 
-    for (int i = 0; i < notes_playing_count; i++) {
-      int note = notes_playing[i].number;
+    for (int i = 0; i < oscillator_notes_count; i++) {
+      int note = oscillator_notes[i].number;
 
       if (note != 0) {
         double note_frequency = MIDI_NOTES_TO_FREQUENCIES[note];
@@ -1613,11 +1622,11 @@ void loop () {
           get_decay_seconds(i),
           get_sustain_percent(i),
           get_release_seconds(i),
-          (time_in_micros - notes_playing[i].on_time) / 1000000.0,
+          (time_in_micros - oscillator_notes[i].on_time) / 1000000.0,
           -1
         );
 
-        volume += (((yt + 0.5) * 15) / notes_playing_count);
+        volume += (((yt + 0.5) * 15) / oscillator_notes_count);
         // `+ 0.5` // center around 0
         // `* 15`  // expand to [0..15]
         // `/ 3`   // make room for potentially summing three voices together
@@ -1631,17 +1640,17 @@ void loop () {
   // same with `pulse_width_modulation_mode`
   if (
     pulse_width_modulation_mode_active &&
-    (notes_playing[0].number != 0 || notes_playing[1].number != 0 || notes_playing[2].number != 0 ) &&
+    (oscillator_notes[0].number != 0 || oscillator_notes[1].number != 0 || oscillator_notes[2].number != 0 ) &&
     ((time_in_micros - last_update) > update_every_micros)) {
-    int notes_playing_count = 0;
+    int oscillator_notes_count = 0;
     for (int i = 0; i < 3; i++) {
-      if (notes_playing[i].number != 0) {
-        notes_playing_count++;
+      if (oscillator_notes[i].number != 0) {
+        oscillator_notes_count++;
       }
     }
 
-    for (int i = 0; i < notes_playing_count; i++) {
-      int note = notes_playing[i].number;
+    for (int i = 0; i < oscillator_notes_count; i++) {
+      int note = oscillator_notes[i].number;
       double note_frequency = MIDI_NOTES_TO_FREQUENCIES[note];
 
       double temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
@@ -1654,7 +1663,7 @@ void loop () {
           get_decay_seconds(i),
           get_sustain_percent(i),
           get_release_seconds(i),
-          (time_in_micros - notes_playing[i].on_time) / 1000000.0,
+          (time_in_micros - oscillator_notes[i].on_time) / 1000000.0,
           -1
         );
 
