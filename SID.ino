@@ -421,10 +421,15 @@ void cs_low() {
   SREG = oldSREG;
 }
 
+word get_voice_frequency_register_value(unsigned int voice) {
+  word value = sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_HI];
+  value <<= 8;
+  value += sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_LO];
+  return value;
+}
+
 double get_voice_frequency(unsigned int voice) {
-  word frequency = sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_HI];
-  frequency <<= 8;
-  frequency += sid_state_bytes[(voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_LO];
+  word frequency = get_voice_frequency_register_value(voice);
   double hertz = frequency * CLOCK_SIGNAL_FACTOR;
   return(hertz);
 }
@@ -508,6 +513,31 @@ bool get_filter_enabled_for_voice(unsigned int voice) {
 
 void sid_transfer(byte address, byte data) {
   address &= 0B00011111;
+
+  // optimization: don't send anything if SID already has that data in that register
+  if (sid_state_bytes[address] == data) {
+    if (debug_sid_transfer) {
+      char addr_str[6];
+      addr_str[0] = '\0';
+      for (int j = 16; j > 0; j >>= 1) {
+        strcat(addr_str, ((address & j) == j) ? "1" : "0");
+      }
+
+      char data_str[9];
+      data_str[0] = '\0';
+      for (int j = 128; j > 0; j >>= 1) {
+        strcat(data_str, ((data & j) == j) ? "1" : "0");
+      }
+
+      Serial.print("  ignoring unneeded sid_transfer(");
+      Serial.print(addr_str);
+      Serial.print(", ");
+      Serial.print(data_str);
+      Serial.print(")\n");
+    }
+
+    return;
+  }
 
   // PORTF is a weird 6-bit register (8 bits, but bits 2 and 3 don't exist)
   //
@@ -705,10 +735,17 @@ void sid_set_voice_frequency(int voice, double hertz) {
   word frequency = (hertz / CLOCK_SIGNAL_FACTOR);
   byte loFrequency = lowByte(frequency);
   byte hiFrequency = highByte(frequency);
-  byte loAddress = (voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_LO;
-  byte hiAddress = (voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_HI;
-  sid_transfer(loAddress, loFrequency);
-  sid_transfer(hiAddress, hiFrequency);
+
+  // optimization: if the voice's frequency hasn't changed, don't send it
+  word prev = get_voice_frequency_register_value(voice);
+  if (loFrequency != lowByte(prev)) {
+    byte loAddress = (voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_LO;
+    sid_transfer(loAddress, loFrequency);
+  }
+  if (hiFrequency != highByte(prev)) {
+    byte hiAddress = (voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_HI;
+    sid_transfer(hiAddress, hiFrequency);
+  }
 }
 
 void sid_set_gate(int voice, bool state) {
@@ -804,9 +841,17 @@ void handle_message_voice_waveform_change(byte voice, byte waveform, bool on) {
 
 void handle_message_voice_filter_change(byte voice, bool on) {
   if (polyphony > 1) {
-    for (int i = 0; i < 3; i++) {
-      sid_set_filter(i, on);
+    byte address = SID_REGISTER_ADDRESS_FILTER_RESONANCE;
+    byte data = 0;
+    byte voice_filter_mask = (SID_FILTER_VOICE1 | SID_FILTER_VOICE2 | SID_FILTER_VOICE3);
+
+    if (on) {
+      data = sid_state_bytes[address] | voice_filter_mask;
+    } else {
+      data = sid_state_bytes[address] & ~voice_filter_mask;
     }
+
+    sid_transfer(address, data);
   } else {
     sid_set_filter(voice, on);
   }
