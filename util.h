@@ -7,37 +7,8 @@
 typedef unsigned char byte;
 typedef unsigned int word;
 
-
-#define MIN(a,b) \
-  ({ __typeof__ (a) _a = (a); \
-     __typeof__ (b) _b = (b); \
-     _a <= _b ? _a : _b; })
-
-void reverse(char s[]) {
-  int i, j;
-  char c;
-  for (i = 0, j = strlen(s)-1; i<j; i++, j--) {
-    c = s[i];
-    s[i] = s[j];
-    s[j] = c;
-  }
-}
-
-void itoa(int n, char s[]) {
-  int i, sign;
-  if ((sign = n) < 0) {
-    n = -n;
-  }
-  i = 0;
-  do {
-    s[i++] = n % 10 + '0';
-  } while ((n /= 10) > 0);
-  if (sign < 0) {
-    s[i++] = '-';
-  }
-  s[i] = '\0';
-  reverse(s);
-}
+byte lowNibble(byte b) { return(b & 0B00001111); }
+byte highNibble(byte b) { return((b & 0B11110000) >> 4); }
 
 // y(t) = A * sin(2πft + φ)
 //
@@ -60,7 +31,18 @@ double linear_envelope(double a, double d, double s, double r, double seconds, d
   }
 }
 
-byte lowNibble(byte b) { return(b & 0B00001111); }
-byte highNibble(byte b) { return((b & 0B11110000) >> 4); }
+// there's apparently not widespread agreement on which frequency midi notes
+// represent. What we have below is "scientific pitch notation". Ableton, maxmsp
+// and garageband use C3, which is shifted an octave lower.
+// https://en.wikipedia.org/wiki/Scientific_pitch_notation#See_also
+const double TWELFTH_ROOT_OF_TWO = 1.05946309436;
+const int base_number = 57;
+const int base_freq = 440;
+
+double note_number_to_frequency(byte note) {
+  int half_steps_from_base = note - base_number;
+
+  return(base_freq * (pow(TWELFTH_ROOT_OF_TWO, half_steps_from_base)));
+}
 
 #endif /* UTIL_H */

@@ -5,87 +5,75 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include "node.h"
+#include "hash_table.h"
 
 // A deque (double-ended queue) implemented using a fixed-size doubly-linked list
-// backed by a ring buffer array. (Could easily be changed to auto-expand in size.)
+// backed by a simple fixed-size hash table using open addressing
 //
-// Similar to Scala's [ArrayDeque](https://www.scala-lang.org/api/current/scala/collection/mutable/ArrayDeque.html),
-// but with some optimizations for O(1) deletion at the cost of worse space performance.
-//
-// Implements O(1) prepend, append, remove_first, remove_last, find(i)*, remove(i)*
+// Implements O(1) average-case prepend, append, remove_first, remove_last, find(i)*, remove(i)*
 //
 // [*]: if `node_index_function` isn't implemented, `find(i)` and remove(i) are O(n).
 
-// BEGIN the "generic section" for this cursed language
-#include "note.h"
-#define NODE_TYPE struct note
-// END the "generic section" for this cursed language
-
-typedef struct node node;
 typedef struct deque deque;
 
-// function that takes a NODE_TYPE and returns a unique array index for that
+// function that takes a NODE_DATA and returns a unique array index for that
 // node. The index will be used as for this node's slot in the deque's
 // underlying array. (must be idempotent!)
-typedef size_t (node_index_function_t)(deque *l, NODE_TYPE *n);
+typedef unsigned int (node_index_function_t)(deque *dq, NODE_DATA n);
 // function that takes a node (for printing) and returns void
-typedef void (node_print_function_t)(node *n);
+typedef void (node_print_function_t)(node *n, FILE *stream);
 // function that takes a deque (for printing) and returns void
-typedef void (list_print_function_t)(deque *l);
-
-struct node {
-  NODE_TYPE *data;
-  node *previous;
-  node *next;
-  size_t index;
-};
+typedef void (deque_print_function)(deque *dq);
 
 struct deque {
   node *first;
   node *last;
-  size_t length;
-  int max_length;
-  int start_index;
-  int end_index;
-  node **data_array;
+  unsigned int max_length;
+  hash_table *ht;
+  FILE *stream;
   node_index_function_t *node_index_function;
   node_print_function_t *node_print_function;
-  list_print_function_t *root_print_function;
+  deque_print_function *root_print_function;
 };
 
-void deque_initialize(deque *list, size_t max_length, node_index_function_t *node_indexer, node_print_function_t *node_printer);
-void deque_append(deque *list, NODE_TYPE *node_data);
-void deque_prepend(deque *list, NODE_TYPE *node_data);
-NODE_TYPE *deque_remove_first(deque *list);
-NODE_TYPE *deque_remove_last(deque *list);
-NODE_TYPE *deque_remove(deque *list, size_t n);
-void deque_inspect(deque *list);
-void deque_empty(deque *list);
-void deque_free(deque *list);
-bool is_empty(deque *list);
+struct maybe_node_data {
+  bool exists; // if `exists` is not `true`, then the value returned by `unwrap` is undefined.
+  NODE_DATA unwrap;
+};
+typedef struct maybe_node_data maybe_node_data;
+
+deque *deque_initialize(unsigned int max_length, FILE *stream, node_index_function_t *node_indexer, node_print_function_t *node_printer);
+unsigned int deque_length(deque *dq);
+void deque_append(deque *dq, NODE_DATA node_data);
+void deque_prepend(deque *dq, NODE_DATA node_data);
+maybe_node_data deque_remove_first(deque *dq);
+maybe_node_data deque_remove_last(deque *dq);
+maybe_node_data deque_remove_by_key(deque *dq, unsigned int k);
+NODE_DATA *deque_find_by_key(deque *dq, unsigned int k);
+node *deque_find_node_by_key(deque *dq, unsigned int k);
+void deque_inspect(deque *dq);
+void deque_empty(deque *dq);
+void deque_free(deque *dq);
 // "private" below
-static node *_deque_find(node *list, size_t n);
-static NODE_TYPE *_deque_remove_helper(deque *list, node *n);
-static void _note_node_print_function(node *n);
-static void _deque_inspect_nodes(node *n, node_print_function_t *print_node);
+static maybe_node_data _deque_remove_helper(deque *dq, unsigned int key);
+static void _note_node_print_function(node *n, FILE *stream);
+static void _deque_inspect_nodes(node *n, node_print_function_t *print_node, FILE *stream);
 static void _deque_root_print_function(deque *l);
-static int _deque_end_index_plus(deque *list, signed int i);
-static int _deque_start_index_minus(deque *list, signed int i);
-static int _deque_start_index_plus(deque *list, signed int i);
 
 // BEGIN the section of code that stands for "generic" in this cursed language
-size_t _note_indexer(deque *list, note *n) {
-  if (NULL == n) {
-    fprintf(stderr, "note_indexer was passed a NULL note pointer.");
-    exit(EXIT_FAILURE);
-  }
-
-  return n->number;
+unsigned int _note_indexer(__attribute__ ((unused)) deque *dq, note n) {
+  return n.number;
 }
 
-static void _note_node_print_function(node *n) {
-  if (n == NULL) {
-    printf("NULL");
+NODE_DATA node_data_init() {
+  NODE_DATA nd = {.number=0, .on_time=0, .off_time=0, .voiced_by_oscillator=0};
+  return(nd);
+}
+
+static void _note_node_print_function(node *n, FILE *stream) {
+  if (!n) {
+    fprintf(stream, "%s", "NONE");
     return;
   }
   node *next = n->next;
@@ -95,104 +83,120 @@ static void _note_node_print_function(node *n) {
   char next_as_string[5];
   char previous_as_string[5];
 
-  n->data != NULL ? snprintf(data_as_string, sizeof(data_as_string), "%i", n->data->number) : snprintf(data_as_string, sizeof(data_as_string), "%s", "NULL");
-  next != NULL && next->data != NULL ? snprintf(next_as_string, sizeof(next_as_string), "%i", next->data->number) : snprintf(next_as_string, sizeof(next_as_string), "%s", "NULL");
-  previous != NULL && previous->data != NULL ? snprintf(previous_as_string, sizeof(previous_as_string), "%i", previous->data->number) : snprintf(previous_as_string, sizeof(previous_as_string), "%s", "NULL");
+  snprintf(data_as_string, sizeof(data_as_string), "%i", n->data.number);
 
-  printf("(#%s %s ☚ ☛ %s)", data_as_string, previous_as_string, next_as_string);
+  if (next) {
+    snprintf(next_as_string, sizeof(next_as_string), "%i", next->data.number);
+  } else {
+    snprintf(next_as_string, sizeof(next_as_string), "%s", "_");
+  }
+
+  if (previous) {
+    snprintf(previous_as_string, sizeof(previous_as_string), "%i", previous->data.number);
+  } else {
+    snprintf(previous_as_string, sizeof(previous_as_string), "%s", "_");
+  }
+
+  fprintf(stream, "(#%s %s< >%s)", data_as_string, previous_as_string, next_as_string);
 }
 // END the section of code that stands for "generic" in this cursed language
 
 // O(n)
-void deque_inspect(deque *list) {
-  list->root_print_function(list);
-  _deque_inspect_nodes(list->first, list->node_print_function);
-  printf("\n");
+void deque_inspect(deque *dq) {
+  _deque_root_print_function(dq);
+  _deque_inspect_nodes(dq->first, dq->node_print_function, dq->stream);
+  fprintf(dq->stream, "%s", "\n");
 }
 
 // O(1)
-void deque_empty(deque *list) {
-  list->length = 0;
-  list->start_index = 0;
-  list->end_index = 0;
-  list->first = NULL;
-  list->last = NULL;
-  list->data_array = (node **) malloc(sizeof(node *) * list->max_length);
+void deque_empty(deque *dq) {
+  dq->first = NULL;
+  dq->last = NULL;
+  hash_table_empty(dq->ht);
 }
 
 // O(n)
-void deque_initialize(deque *list, size_t max_length, node_index_function_t *node_indexer, node_print_function_t *node_printer) {
-  list->max_length = max_length;
-  list->start_index = 0;
-  list->end_index = 0;
-  list->first = NULL;
-  list->last = NULL;
-  list->data_array = (node **) malloc(sizeof(node *) * list->max_length);
-  list->node_index_function = node_indexer;
-  list->node_print_function = node_printer;
-  list->root_print_function = _deque_root_print_function;
-  deque_empty(list);
+deque *deque_initialize(unsigned int max_length, FILE *stream, node_index_function_t *node_indexer, node_print_function_t *node_printer) {
+  deque *dq = (deque *)malloc(sizeof(deque));
+  dq->max_length = max_length;
+  dq->first = NULL;
+  dq->last = NULL;
+  dq->ht = hash_table_initialize(dq->max_length); // sizeof(ht) + array[max_length] of nodes
+  dq->stream = stream;
+  dq->node_index_function = node_indexer;
+  dq->node_print_function = node_printer;
+  dq->root_print_function = _deque_root_print_function;
+  deque_empty(dq);
+  return dq;
 }
 
 // O(1)
-void deque_free(deque *list) {
-  if (list->data_array) { free(list->data_array); }
-  // free(list);
+unsigned int deque_length(deque *dq) {
+  return dq->ht->size;
 }
 
 // O(1)
-bool is_empty(deque *list) {
-  return(!!(list->first));
+void deque_free(deque *dq) {
+  if (dq->ht) {
+    hash_table_free(dq->ht);
+  }
+  free(dq);
 }
 
 // O(1)
-void deque_append(deque *list, NODE_TYPE *node_data) {
-  node *new_node = (struct node*) malloc(sizeof(struct node));
+void deque_append(deque *dq, NODE_DATA node_data) {
+  int key = dq->node_index_function(dq, node_data);
+  node *new_node = NULL;
 
-  size_t index = list->node_index_function
-    ? list->node_index_function(list, node_data)
-    : _deque_end_index_plus(list, 1);
+  while (new_node == NULL) {
+    new_node = hash_table_set(
+      dq->ht,
+      key,
+      (node){ .data=node_data, .previous=dq->last, .next=NULL, .key=key }
+    );
 
-  new_node->index = index;
-  list->data_array[index] = new_node;
+    // the only way this returns NULL is if it fails to set, which means the
+    // hash is out of space, so delete the oldest element first and try again
+    // NB: if this loops more than once, something went extremely wrong
+    if (!new_node) {
+      deque_remove_first(dq);
+    }
+  }
 
-  new_node->next = NULL;
-  new_node->previous = NULL;
-  new_node->data = node_data;
-
-  node *last = list->last;
-  list->length++;
-  list->end_index = index;
-  list->last = new_node;
+  node *last = dq->last;
+  dq->last = new_node;
   if (!last) {
-    list->first = new_node;
+    dq->first = new_node;
     return;
   }
   last->next = new_node;
   new_node->previous = last;
 }
 
-// O(1)
-void deque_prepend(deque *list, NODE_TYPE *node_data) {
-  node *new_node = (struct node*) malloc(sizeof(struct node));
+// // O(1)
+void deque_prepend(deque *dq, NODE_DATA node_data) {
+  int key = dq->node_index_function(dq, node_data);
+  node *new_node = NULL;
 
-  size_t index = list->node_index_function
-    ? list->node_index_function(list, node_data)
-    : _deque_start_index_minus(list, 1);
+  while (new_node == NULL) {
+    new_node = hash_table_set(
+      dq->ht,
+      key,
+      (node){ .data=node_data, .previous=NULL, .next=dq->first, .key=key }
+    );
 
-  new_node->index = index;
-  list->data_array[index] = new_node;
+    // the only way this returns NULL is if it fails to set, which means the
+    // hash is out of space, so delete the newest element first and try again
+    // NB: if this loops more than once, something went extremely wrong
+    if (!new_node) {
+      deque_remove_last(dq);
+    }
+  }
 
-  new_node->next = NULL;
-  new_node->previous = NULL;
-  new_node->data = node_data;
-
-  node *first = list->first;
-  list->length++;
-  list->start_index = index;
-  list->first = new_node;
+  node *first = dq->first;
+  dq->first = new_node;
   if (!first) {
-    list->last = new_node;
+    dq->last = new_node;
     return;
   }
   first->previous = new_node;
@@ -200,102 +204,78 @@ void deque_prepend(deque *list, NODE_TYPE *node_data) {
 }
 
 // O(1)
-NODE_TYPE *deque_remove_first(deque *list) {
-  node *n = list->first;
+maybe_node_data deque_remove_first(deque *dq) {
+  node *first = dq->first;
+  if (first == NULL) {
+    return (maybe_node_data){ .exists=false };
+  }
+  node *next = dq->first->next;
+  NODE_DATA value = first->data;
 
-  if (n->next) {
-    list->first = n->next;
-    list->length--;
+  maybe_hash_table_val removed = hash_table_remove(dq->ht, first->key);
+
+  if (!removed.exists) { exit(EXIT_FAILURE); } // well this is unexpected!
+
+  if (next) {
+    dq->first = next;
   } else {
-    list->first = NULL;
-    list->last = NULL;
-    list->length = 0;
+    dq->first = NULL;
+    dq->last = NULL;
   }
 
-  return n->data;
+  return (maybe_node_data){ .exists=true, .unwrap=value };
 }
 
 // O(1)
-NODE_TYPE *deque_remove_last(deque *list) {
-  node *n = list->last;
+maybe_node_data deque_remove_last(deque *dq) {
+  node *last = dq->last;
+  if (last == NULL) {
+    return (maybe_node_data){ .exists=false };
+  }
+  node *previous = dq->last->previous;
 
-  if (n->previous) {
-    list->last = n->previous;
-    list->length--;
+  NODE_DATA value = last->data;
+
+  maybe_hash_table_val removed = hash_table_remove(dq->ht, last->key);
+
+  if (!removed.exists) { exit(EXIT_FAILURE); } // well this is unexpected!
+
+  if (previous) {
+    dq->last = previous;
   } else {
-    list->first = NULL;
-    list->last = NULL;
-    list->length = 0;
+    dq->first = NULL;
+    dq->last = NULL;
   }
 
-  return n->data;
-}
-
-// O(n)
-NODE_TYPE *deque_find(deque *list, size_t n) {
-  node *result = NULL;
-
-  if (n == 0) {
-    result = list->first;
-  } else if (n == list->length - 1) {
-    result = list->last;
-  } else {
-    result = _deque_find(list->first, n);
-  }
-
-  if (result == NULL) { return NULL; }
-
-  return result->data;
-}
-
-// O(n)
-NODE_TYPE *deque_remove(deque *list, size_t n) {
-  if (n == list->length - 1) { return deque_remove_last(list); }
-  if (n == 0) { return deque_remove_first(list); }
-
-  node *nth = _deque_find(list->first, n);
-
-  return _deque_remove_helper(list, nth);
+  return (maybe_node_data){ .exists=true, .unwrap=value };
 }
 
 // O(1)
-NODE_TYPE *deque_remove_by_index(deque *list, size_t i) {
-  if (i > (list->max_length - 1)) {
-    fprintf(stderr, "deque_remove_by_index: attempt to access out-of-bounds array index %zu", i);
-    return NULL;
-  }
-
-  return _deque_remove_helper(list, list->data_array[i]);
+maybe_node_data deque_remove_by_key(deque *dq, unsigned int k) {
+  return _deque_remove_helper(dq, k);
 }
 
 // O(1)
-NODE_TYPE *deque_find_by_index(deque *list, size_t i) {
-  if (i > (list->max_length - 1)) {
-    fprintf(stderr, "deque_find_by_index: attempt to access out-of-bounds index %zu", i);
-    return NULL;
-  }
+NODE_DATA *deque_find_by_key(deque *dq, unsigned int k) {
+  HASH_TABLE_VAL *result = hash_table_get(dq->ht, k);
+  return(result ? &result->data : NULL);
+}
 
-  node *result = list->node_index_function
-    ? list->data_array[i]
-    : list->data_array[_deque_start_index_plus(list, i)];
-
-  return(result ? result->data : NULL);
+// O(1)
+node *deque_find_node_by_key(deque *dq, unsigned int k) {
+  HASH_TABLE_VAL *result = hash_table_get(dq->ht, k);
+  return(result ? result : NULL);
 }
 
 // private below
+static maybe_node_data _deque_remove_helper(deque *dq, unsigned int k) {
+  maybe_hash_table_val removed = hash_table_remove(dq->ht, k);
+  if (!removed.exists) {
+    return (maybe_node_data){ .exists=false };
+  }
 
-static node *_deque_find(node *nd, size_t n) {
-  if (NULL == nd) { return NULL; }
-  if (0 == n) { return nd; }
-
-  return _deque_find(nd->next, --n);
-}
-
-static NODE_TYPE *_deque_remove_helper(deque *list, node *n) {
-  if (NULL == n) { return NULL; }
-
-  node *next = n->next;
-  node *previous = n->previous;
+  node *next = removed.unwrap.next;
+  node *previous = removed.unwrap.previous;
 
   if (previous) {
     previous->next = next;
@@ -304,45 +284,31 @@ static NODE_TYPE *_deque_remove_helper(deque *list, node *n) {
     next->previous = previous;
   }
 
-  if (list->first == n) { list->first = next; }
-  if (list->last == n) { list->last = previous; }
+  if (previous == NULL) { // it was the first node
+    dq->first = next;
+  }
+  if (next == NULL) { // it was the last node
+    dq->last = previous;
+  }
 
-  list->length--;
-  list->data_array[n->index] = NULL;
-
-  return n->data;
+  return (maybe_node_data){ .exists=true, .unwrap=removed.unwrap.data };
 }
 
-static void _deque_inspect_nodes(node *n, node_print_function_t *print_node) {
+static void _deque_inspect_nodes(node *n, node_print_function_t *print_node, FILE *stream) {
   if (n == NULL) {
     return;
   }
-  print_node(n);
+  print_node(n, stream);
   if (n->next) {
-    printf("-");
-    _deque_inspect_nodes(n->next, print_node);
+    fprintf(stream, "%s", "-");
+    _deque_inspect_nodes(n->next, print_node, stream);
   } else {
     return;
   }
 }
 
-static void _deque_root_print_function(deque *l) {
-  printf("deque(%zu): ", l->length);
-}
-
-static int _deque_start_index_minus(deque *list, signed int i) {
-  int result = (list->start_index - i) % (list->max_length);
-  return (result < 0) ? list->max_length + result : result;
-}
-
-static int _deque_start_index_plus(deque *list, signed int i) {
-  int result = (list->start_index + i) % (list->max_length);
-  return (result < 0) ? list->max_length + result : result;
-}
-
-static int _deque_end_index_plus(deque *list, signed int i) {
-  int result = (list->end_index + i) % (list->max_length);
-  return (result < 0) ? list->max_length + result : result;
+static void _deque_root_print_function(deque *dq) {
+  fprintf(dq->stream, "dq(%d/%d): ", deque_length(dq), dq->max_length);
 }
 
 #endif /* DEQUE_H */

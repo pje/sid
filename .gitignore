@@ -1,5 +1,6 @@
 build*/
 *.orig
-test/runner
+test/*test
+test/*.dSYM
 compile_commands.json
 .clangd/

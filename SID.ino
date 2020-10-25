@@ -2,17 +2,39 @@
 #include <avr/io.h>
 #include <math.h>
 #include <usbmidi.h>
+#include "hash_table.h"
+#include "stdinout.h"
 #include "note.h"
 #include "util.h"
 #include "deque.h"
 
-bool debug_sid_transfer = false; // setting to true will print every SID data transfer
-bool debug_glide_updates = false;
+#ifdef __arm__
+// should use uinstd.h to define sbrk but Due causes a conflict
+extern "C" char* sbrk(int incr);
+#else  // __ARM__
+extern char *__brkval;
+#endif  // __arm__
+
+int freeMemory() {
+  char top;
+#ifdef __arm__
+  return &top - reinterpret_cast<char*>(sbrk(0));
+#elif defined(CORE_TEENSY) || (ARDUINO > 103 && ARDUINO != 151)
+  return &top - __brkval;
+#else  // __arm__
+  return __brkval ? &top - __brkval : &top - __malloc_heap_start;
+#endif  // __arm__
+}
+
+#define DEBUG_LOGGING true
+
+const unsigned int deque_size = 32; // the number of notes that can be held simultaneously
+deque *notes = deque_initialize(deque_size, stdout, _note_indexer, _note_node_print_function);
 
 const int ARDUINO_SID_CHIP_SELECT_PIN = 13; // D13
 const int ARDUINO_SID_MASTER_CLOCK_PIN = 5; // D5
 
-const double CLOCK_SIGNAL_FACTOR = 0.0596;
+const float CLOCK_SIGNAL_FACTOR = 0.0596;
 
 const byte SID_REGISTER_OFFSET_VOICE_FREQUENCY_LO   = 0;
 const byte SID_REGISTER_OFFSET_VOICE_FREQUENCY_HI   = 1;
@@ -45,36 +67,8 @@ const byte SID_FILTER_VOICE2 = 0B00000010;
 const byte SID_FILTER_VOICE3 = 0B00000100;
 const byte SID_FILTER_EXT    = 0B00001000;
 
-const double SID_MIN_OSCILLATOR_HERTZ = 16.35;
-const double SID_MAX_OSCILLATOR_HERTZ = 3951.06;
-
-const char *sid_register_short_names[25] = {
-  "V1 FREQ LO ",
-  "V1 FREQ HI ",
-  "V1 PW LO   ",
-  "V1 PW HI   ",
-  "V1 CONTROL ",
-  "V1 ATK/DCY ",
-  "V1 STN/RLS ",
-  "V2 FREQ LO ",
-  "V2 FREQ HI ",
-  "V2 PW LO   ",
-  "V2 PW HI   ",
-  "V2 CONTROL ",
-  "V2 ATK/DCY ",
-  "V2 STN/RLS ",
-  "V3 FREQ LO ",
-  "V3 FREQ HI ",
-  "V3 PW LO   ",
-  "V3 PW HI   ",
-  "V3 CONTROL ",
-  "V3 ATK/DCY ",
-  "V3 STN/RLS ",
-  "FG FC LO   ",
-  "FG FC HI   ",
-  "FG RES/FILT",
-  "FG MODE/VOL"
-};
+const float SID_MIN_OSCILLATOR_HERTZ = 16.35;
+const float SID_MAX_OSCILLATOR_HERTZ = 3951.06;
 
 // since we have to set all the bits in a register byte at once,
 // we must maintain a copy of the register's state so we don't clobber bits
@@ -156,9 +150,9 @@ const byte MIDI_CONTROL_CHANGE_RPN_MSB                           = 101;
 const byte MIDI_CONTROL_CHANGE_RPN_LSB                           = 100;
 const byte MIDI_CONTROL_CHANGE_DATA_ENTRY                        = 6;
 const byte MIDI_CONTROL_CHANGE_DATA_ENTRY_FINE                   = 38;
-const word MIDI_RPN_PITCH_BEND_SENSITIVITY                       = 0;
-const word MIDI_RPN_MASTER_FINE_TUNING                           = 1;
-const word MIDI_RPN_MASTER_COARSE_TUNING                         = 2;
+const byte MIDI_RPN_PITCH_BEND_SENSITIVITY                       = 0;
+const byte MIDI_RPN_MASTER_FINE_TUNING                           = 1;
+const byte MIDI_RPN_MASTER_COARSE_TUNING                         = 2;
 const word MIDI_RPN_NULL                                         = 16383;
 
 // below are CC numbers that are defined and we don't implement, but repurposing
@@ -166,30 +160,27 @@ const word MIDI_RPN_NULL                                         = 16383;
 const byte MIDI_CONTROL_CHANGE_ALL_NOTES_OFF                     = 123;
 
 const byte MIDI_CHANNEL = 0; // "channel 1" (zero-indexed)
-const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_POLYPHONIC        = 0;
+const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_PARAPHONIC        = 0;
 const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC        = 1;
 const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC_LEGATO = 2;
 const byte MIDI_PROGRAM_CHANGE_HARDWARE_RESET                    = 127;
 
 const byte MAX_POLYPHONY = 3;
-const double DEFAULT_PITCH_BEND_SEMITONES = 5;
+const byte DEFAULT_PITCH_BEND_SEMITONES = 5;
 const double DEFAULT_GLIDE_TIME_MILLIS = 100.0;
-const double GLIDE_TIME_MIN_MILLIS = 1;
-const double GLIDE_TIME_MAX_MILLIS = 10000;
+const unsigned int GLIDE_TIME_MIN_MILLIS = 1;
+const unsigned int GLIDE_TIME_MAX_MILLIS = 10000;
 
 byte polyphony = 3;
 bool legato_mode = false;
-double glide_time_millis = DEFAULT_GLIDE_TIME_MILLIS;
+float glide_time_millis = DEFAULT_GLIDE_TIME_MILLIS;
 word glide_time_raw_word;
 byte glide_time_raw_lsb;
 unsigned long glide_start_time_micros = 0;
 byte glide_to = 0;
 byte glide_from = 0;
 
-struct note *deque_index[MAX_POLYPHONY] = { NULL, NULL, NULL };
-
-struct note oscillator_notes[3] = { { .number = 0, .on_time = 0, .off_time = 0 } };
-deque *notes = (struct deque*) malloc(sizeof(deque));
+struct note oscillator_notes[3] = { { .number=0, .on_time=0, .off_time=0 } };
 
 int midi_pitch_bend_max_semitones = DEFAULT_PITCH_BEND_SEMITONES;
 double current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
@@ -202,7 +193,7 @@ const byte DEFAULT_ATTACK = 0;
 const byte DEFAULT_DECAY = 0;
 const byte DEFAULT_SUSTAIN = 15;
 const byte DEFAULT_RELEASE = 0;
-const double DEFAULT_FILTER_FREQUENCY = 1000.0;
+const unsigned short int DEFAULT_FILTER_FREQUENCY = 1000;
 const byte DEFAULT_FILTER_RESONANCE = 15;
 const byte DEFAULT_VOLUME = 15;
 
@@ -227,16 +218,29 @@ word data_entry = 0;
 bool volume_modulation_mode_active = false;
 
 bool pulse_width_modulation_mode_active = false;
-const double PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY = 65535;
+const unsigned int PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY = 65535;
 
 unsigned long last_update = 0;
 unsigned long last_glide_update_micros = 0;
-const double update_every_micros = (100.0 / 4.41);
+const float update_every_micros = (100.0 / 4.41);
 
 unsigned long time_in_micros = 0;
-double time_in_seconds = 0;
+unsigned long time_in_seconds = 0;
 
-const double sid_attack_values_to_seconds[16] = {
+static void __deque_inspect_nodes(node *n) {
+  if (n == NULL) {
+    return;
+  }
+  _note_node_print_function(n, stdout);
+  if (n->next) {
+    Serial.print("-");
+    __deque_inspect_nodes(n->next);
+  } else {
+    return;
+  }
+}
+
+const float sid_attack_values_to_seconds[16] = {
   0.002,
   0.008,
   0.016,
@@ -255,7 +259,7 @@ const double sid_attack_values_to_seconds[16] = {
   8.000
 };
 
-const double sid_decay_and_release_values_to_seconds[16] = {
+const float sid_decay_and_release_values_to_seconds[16] = {
   0.006,
   0.024,
   0.048,
@@ -272,109 +276,6 @@ const double sid_decay_and_release_values_to_seconds[16] = {
   9.000,
   15.00,
   24.00
-};
-
-// there's apparently not widespread agreement on which frequency midi notes
-// represent. What we have below is "scientific pitch notation". Ableton, maxmsp
-// and garageband use C3, which is shifted an octave lower.
-// https://en.wikipedia.org/wiki/Scientific_pitch_notation#See_also
-const double MIDI_NOTES_TO_FREQUENCIES[96] = {
-  16.351597831287414, // C0
-  17.323914436054505, // C#0
-  18.354047994837977, // D0
-  19.445436482630058, // D#0
-  20.601722307054366, // E0
-  21.826764464562746, // F0
-  23.12465141947715,  // F#0
-  24.499714748859326, // G0
-  25.956543598746574, // G#0
-  27.5,               // A0
-  29.13523509488062,  // A#0
-  30.86770632850775,  // B0
-  32.70319566257483,  // C1
-  34.64782887210901,  // C#1
-  36.70809598967594,  // D1
-  38.890872965260115, // D#1
-  41.20344461410875,  // E1
-  43.653528929125486, // F1
-  46.2493028389543,   // F#1
-  48.999429497718666, // G1
-  51.91308719749314,  // G#1
-  55.0,               // A1
-  58.27047018976124,  // A#1
-  61.7354126570155,   // B1
-  65.40639132514966,  // C2
-  69.29565774421802,  // C#2
-  73.41619197935188,  // D2
-  77.78174593052023,  // D#2
-  82.4068892282175,   // E2
-  87.30705785825097,  // F2
-  92.4986056779086,   // F#2
-  97.99885899543733,  // G2
-  103.82617439498628, // G#2
-  110.0,              // A2
-  116.54094037952248, // A#2
-  123.47082531403103, // B2
-  130.8127826502993,  // C3
-  138.59131548843604, // C#3
-  146.8323839587038,  // D3
-  155.56349186104046, // D#3
-  164.81377845643496, // E3
-  174.61411571650194, // F3
-  184.9972113558172,  // F#3
-  195.99771799087463, // G3
-  207.65234878997256, // G#3
-  220.0,              // A3
-  233.08188075904496, // A#3
-  246.94165062806206, // B3
-  261.6255653005986,  // C4
-  277.1826309768721,  // C#4
-  293.6647679174076,  // D4
-  311.1269837220809,  // D#4
-  329.6275569128699,  // E4
-  349.2282314330039,  // F4
-  369.9944227116344,  // F#4
-  391.99543598174927, // G4
-  415.3046975799451,  // G#4
-  440.0,              // A4
-  466.1637615180899,  // A#4
-  493.8833012561241,  // B4
-  523.2511306011972,  // C5
-  554.3652619537442,  // C#5
-  587.3295358348151,  // D5
-  622.2539674441618,  // D#5
-  659.2551138257398,  // E5
-  698.4564628660078,  // F5
-  739.9888454232688,  // F#5
-  783.9908719634985,  // G5
-  830.6093951598903,  // G#5
-  880.0,              // A5
-  932.3275230361799,  // A#5
-  987.7666025122483,  // B5
-  1046.5022612023945, // C5
-  1108.7305239074883, // C#6
-  1174.6590716696303, // D6
-  1244.5079348883237, // D#6
-  1318.5102276514797, // E6
-  1396.9129257320155, // F6
-  1479.9776908465376, // F#6
-  1567.981743926997,  // G6
-  1661.2187903197805, // G#6
-  1760.0,             // A6
-  1864.6550460723597, // A#6
-  1975.533205024496,  // B6
-  2093.004522404789,  // C6
-  2217.4610478149766, // C#7
-  2349.31814333926,   // D7
-  2489.0158697766474, // D#7
-  2637.02045530296,   // E7
-  2793.825851464031,  // F7
-  2959.955381693075,  // F#7
-  3135.9634878539946, // G7
-  3322.437580639561,  // G#7
-  3520.0,             // A7
-  3729.3100921447194, // A#7
-  3951.066410048992   // B7
 };
 
 void clock_high() {
@@ -512,26 +413,6 @@ void sid_transfer(byte address, byte data) {
 
   // optimization: don't send anything if SID already has that data in that register
   if (sid_state_bytes[address] == data) {
-    if (debug_sid_transfer) {
-      char addr_str[6];
-      addr_str[0] = '\0';
-      for (int j = 16; j > 0; j >>= 1) {
-        strcat(addr_str, ((address & j) == j) ? "1" : "0");
-      }
-
-      char data_str[9];
-      data_str[0] = '\0';
-      for (int j = 128; j > 0; j >>= 1) {
-        strcat(data_str, ((data & j) == j) ? "1" : "0");
-      }
-
-      Serial.print("  ignoring unneeded sid_transfer(");
-      Serial.print(addr_str);
-      Serial.print(", ");
-      Serial.print(data_str);
-      Serial.print(")\n");
-    }
-
     return;
   }
 
@@ -561,26 +442,6 @@ void sid_transfer(byte address, byte data) {
   interrupts();
 
   sid_state_bytes[address] = data;
-
-  if (debug_sid_transfer) {
-    char addr_str[6];
-    addr_str[0] = '\0';
-    for (int j = 16; j > 0; j >>= 1) {
-      strcat(addr_str, ((address & j) == j) ? "1" : "0");
-    }
-
-    char data_str[9];
-    data_str[0] = '\0';
-    for (int j = 128; j > 0; j >>= 1) {
-      strcat(data_str, ((data & j) == j) ? "1" : "0");
-    }
-
-    Serial.print("  sid_transfer(");
-    Serial.print(addr_str);
-    Serial.print(", ");
-    Serial.print(data_str);
-    Serial.print(")\n");
-  }
 }
 
 void sid_zero_all_registers() {
@@ -774,10 +635,10 @@ void nullify_notes_playing() {
     oscillator_notes[i] = { .number = 0, .on_time = 0, .off_time = 0 };
   }
 
-  deque_initialize(notes, 127, _note_indexer, _note_node_print_function);
+  deque_empty(notes);
 }
 
-void handle_message_voice_attack_change(byte voice, byte envelope_value) {
+void handle_voice_attack_change(byte voice, byte envelope_value) {
   if (polyphony > 1) {
     for (int i = 0; i < polyphony; i++) {
       sid_set_attack(i, envelope_value);
@@ -787,7 +648,7 @@ void handle_message_voice_attack_change(byte voice, byte envelope_value) {
   }
 }
 
-void handle_message_voice_decay_change(byte voice, byte envelope_value) {
+void handle_voice_decay_change(byte voice, byte envelope_value) {
   if (polyphony > 1) {
     for (int i = 0; i < 3; i++) {
       sid_set_decay(i, envelope_value);
@@ -797,7 +658,7 @@ void handle_message_voice_decay_change(byte voice, byte envelope_value) {
   }
 }
 
-void handle_message_voice_sustain_change(byte voice, byte envelope_value) {
+void handle_voice_sustain_change(byte voice, byte envelope_value) {
   if (polyphony > 1) {
     for (int i = 0; i < 3; i++) {
       sid_set_sustain(i, envelope_value);
@@ -807,7 +668,7 @@ void handle_message_voice_sustain_change(byte voice, byte envelope_value) {
   }
 }
 
-void handle_message_voice_release_change(byte voice, byte envelope_value) {
+void handle_voice_release_change(byte voice, byte envelope_value) {
   if (polyphony > 1) {
     for (int i = 0; i < 3; i++) {
       sid_set_release(i, envelope_value);
@@ -817,7 +678,7 @@ void handle_message_voice_release_change(byte voice, byte envelope_value) {
   }
 }
 
-void handle_message_voice_waveform_change(byte voice, byte waveform, bool on) {
+void handle_voice_waveform_change(byte voice, byte waveform, bool on) {
   if (on) {
     if (polyphony > 1) {
       for (int i = 0; i < 3; i++) {
@@ -837,7 +698,7 @@ void handle_message_voice_waveform_change(byte voice, byte waveform, bool on) {
   }
 }
 
-void handle_message_voice_filter_change(byte voice, bool on) {
+void handle_voice_filter_change(byte voice, bool on) {
   if (polyphony > 1) {
     byte address = SID_REGISTER_ADDRESS_FILTER_RESONANCE;
     byte data = 0;
@@ -855,7 +716,7 @@ void handle_message_voice_filter_change(byte voice, bool on) {
   }
 }
 
-void handle_message_voice_pulse_width_change(byte voice, word frequency) {
+void handle_voice_pulse_width_change(byte voice, word frequency) {
   if (polyphony > 1) {
     for (int i = 0; i < polyphony; i++) {
       sid_set_pulse_width(i, frequency);
@@ -865,7 +726,7 @@ void handle_message_voice_pulse_width_change(byte voice, word frequency) {
   }
 }
 
-void handle_message_voice_ring_mod_change(byte voice, bool on) {
+void handle_voice_ring_mod_change(byte voice, bool on) {
   if (polyphony > 1) {
     for (int i = 0; i < polyphony; i++) {
       sid_set_ring_mod(i, on);
@@ -875,7 +736,7 @@ void handle_message_voice_ring_mod_change(byte voice, bool on) {
   }
 }
 
-void handle_message_voice_sync_change(byte voice, bool on) {
+void handle_voice_sync_change(byte voice, bool on) {
   if (polyphony > 1) {
     for (int i = 0; i < polyphony; i++) {
       sid_set_sync(i, on);
@@ -885,7 +746,7 @@ void handle_message_voice_sync_change(byte voice, bool on) {
   }
 }
 
-void handle_message_voice_test_change(byte voice, bool on) {
+void handle_voice_test_change(byte voice, bool on) {
   if (polyphony > 1) {
     for (int i = 0; i < polyphony; i++) {
       sid_set_test(i, on);
@@ -895,10 +756,10 @@ void handle_message_voice_test_change(byte voice, bool on) {
   }
 }
 
-void handle_message_voice_detune_change(byte voice, double detune_factor) {
+void handle_voice_detune_change(byte voice, double detune_factor) {
   voice_detune_percents[voice] = detune_factor;
   double semitone_change = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[voice] * detune_max_semitones);
-  double frequency = MIDI_NOTES_TO_FREQUENCIES[oscillator_notes[voice].number] * pow(2, semitone_change / 12.0);
+  double frequency = note_number_to_frequency(oscillator_notes[voice].number) * pow(2, semitone_change / 12.0);
   sid_set_voice_frequency(voice, frequency);
 }
 
@@ -906,10 +767,10 @@ void handle_message_voice_detune_change(byte voice, double detune_factor) {
 // - takes stateful stuff into account, like pitch bend and detune
 // - will first de-gate the oscillator iff it's not already de-gated for some reason
 // - handles global modulation modes (if we're in volume mod mode, we don't actually interact with the voice.)
-void play_note_for_voice(byte note_number, unsigned int voice) {
+void play_note_for_voice(byte note_number, unsigned char voice) {
   unsigned long now = micros();
   double hertz = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[voice] * detune_max_semitones);
-  hertz = MIDI_NOTES_TO_FREQUENCIES[note_number] * pow(2, hertz / 12.0);
+  hertz = note_number_to_frequency(note_number) * pow(2, hertz / 12.0);
 
   if (!volume_modulation_mode_active) {
     if (get_voice_gate(voice)) {
@@ -925,7 +786,7 @@ void play_note_for_voice(byte note_number, unsigned int voice) {
     if (pulse_width_modulation_mode_active) {
       sid_set_voice_frequency(voice, PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY);
     } else {
-      if (!legato_mode || oscillator_notes[voice].number == 0) {
+      if (!legato_mode || (oscillator_notes[voice].number == 0 || oscillator_notes[voice].off_time != 0)) { // i.e. no other note is being voiced OR the note being voiced is in its release phase
         sid_set_voice_frequency(voice, hertz);
       }
     }
@@ -936,21 +797,39 @@ void play_note_for_voice(byte note_number, unsigned int voice) {
     }
   }
 
-  note* n = (note*) malloc(sizeof(note));
-  n->number = note_number;
-  n->on_time = now;
-  n->off_time = 0;
-  deque_append(notes, n);
+  deque_append(notes, { .number=note_number, .on_time=now, .off_time=0, .voiced_by_oscillator=voice });
 
   oscillator_notes[voice].number = note_number;
-  deque_index[voice] = n;
   oscillator_notes[voice].off_time = 0;
 }
 
-void handle_message_note_on(byte note_number) {
+void log_load_stats() {
+  printf(
+    "{free_mem: %d, h(%u/%u){load: %d%%, coll: %d%%}",
+    freeMemory(),
+    notes->ht->size,
+    notes->ht->max_size,
+    int(hash_table_load_factor(notes->ht) * 100),
+    int(hash_table_collision_ratio(notes->ht) * 100)
+  );
+}
+
+
+void inspect_oscillator_notes() {
+  printf("{%d, %d, %d}\n", oscillator_notes[0].number, oscillator_notes[1].number, oscillator_notes[2].number);
+}
+
+void handle_note_on(byte note_number) {
+  #if DEBUG_LOGGING
+    log_load_stats();
+    printf(" %s(%d): ", __func__, note_number);
+    inspect_oscillator_notes();
+  #endif
+
+  // We're mono, so play the same base note on all 3 oscillators
   if (polyphony == 1) {
     for (int i = 0; i < MAX_POLYPHONY; i++ ) {
-      if (get_voice_waveform(i) != 0) {
+      if (get_voice_waveform(i) != 0) { // don't even try to play "muted" voices
         play_note_for_voice(note_number, i);
       }
     }
@@ -966,24 +845,55 @@ void handle_message_note_on(byte note_number) {
     }
   }
 
-  // there are no free voices, so find the oldest one and replace it.
-  unsigned int oldest_voice = 0;
-  for (int i = 1; i < polyphony; i++) {
-    if (oscillator_notes[i].number != 0 && oscillator_notes[i].on_time < oscillator_notes[oldest_voice].on_time) {
-      oldest_voice = i;
-    }
-  }
+  unsigned int oldest_voice = notes->first->data.voiced_by_oscillator;
+
+  #if DEBUG_LOGGING
+    printf("oldest_voice: %d\n", oldest_voice);
+  #endif
   play_note_for_voice(note_number, oldest_voice);
 }
 
-void handle_message_note_off(byte note_number) {
+void handle_note_off(byte note_number) {
   unsigned long now = micros();
-  for (int i = 0; i < MAX_POLYPHONY; i++) {
+
+  #if DEBUG_LOGGING
+    log_load_stats();
+    printf("%s(%d) ", __func__, note_number);
+    inspect_oscillator_notes();
+  #endif
+
+  note *note_from_deque = deque_find_by_key(notes, note_number);
+  if (note_from_deque) {
+    note_from_deque->off_time = now;
+  } else {
+    #if DEBUG_LOGGING
+      Serial.print("NOTE: received note_off message for an unknown note.");
+    #endif
+  }
+
+  for (unsigned char i = 0; i < MAX_POLYPHONY; i++) {
+    // if the note is being voiced, we just need to start its release phase
     if (oscillator_notes[i].number == note_number) {
-      if (!pulse_width_modulation_mode_active) {
-        sid_set_gate(i, false);
+      if (pulse_width_modulation_mode_active) {
+        oscillator_notes[i].off_time = now;
+        continue;
       }
-      oscillator_notes[i] = { .number = 0, .on_time = 0, .off_time = now };
+      node *other_most_recent_node = deque_find_node_by_key(notes, note_number)->previous;
+      if (legato_mode && other_most_recent_node) {
+        // this means more than one note is being held. So we start gliding to the other most recent note. This is how "hammer-off" glides work
+        byte new_num = other_most_recent_node->data.number;
+        oscillator_notes[i] = { .number=new_num, .on_time=now, .off_time=0, .voiced_by_oscillator=i };
+        glide_start_time_micros = now;
+        glide_to = new_num;
+        glide_from = note_number;
+        deque_remove_by_key(notes, note_number);
+      } else {
+        sid_set_gate(i, false);
+        oscillator_notes[i].off_time = now;
+      }
+    } else {
+      // if the note is not being voiced, we may as well try to remove its entry from the deque now
+      deque_remove_by_key(notes, note_number);
     }
   }
 
@@ -993,13 +903,13 @@ void handle_message_note_off(byte note_number) {
   }
 }
 
-void handle_message_pitchbend_change(word pitchbend) {
+void handle_pitchbend_change(word pitchbend) {
   double temp_double = 0.0;
   current_pitchbend_amount = ((pitchbend / 8192.0) - 1); // 8192 is the "neutral" pitchbend value (half of 2**14)
   for (int i = 0; i < MAX_POLYPHONY; i++) {
     if (oscillator_notes[i].number != 0) {
       temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
-      temp_double = MIDI_NOTES_TO_FREQUENCIES[oscillator_notes[i].number] * pow(2, temp_double / 12.0);
+      temp_double = note_number_to_frequency(oscillator_notes[i].number) * pow(2, temp_double / 12.0);
       if (!pulse_width_modulation_mode_active){
         sid_set_voice_frequency(i, temp_double);
       }
@@ -1015,9 +925,9 @@ void duplicate_voice(unsigned int from_voice, unsigned int to_voice) {
   voice_detune_percents[to_voice] = voice_detune_percents[from_voice];
 }
 
-void handle_message_program_change(byte program_number) {
+void handle_program_change(byte program_number) {
   switch (program_number) {
-  case MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_POLYPHONIC:
+  case MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_PARAPHONIC:
     polyphony = 3;
     sid_set_gate(0, false);
     sid_set_gate(1, false);
@@ -1085,130 +995,120 @@ void handle_state_dump_request(bool human) {
   // should (hopefully) mirror what the SID's registers are right now
 
   if (human) {
-    Serial.print("V#  WAVE     FREQ    A      D      S    R      PW   TEST RING SYNC GATE FILT\n");
-    //           "V1  Triangle 1234.56 12.345 12.345 12.345 12.345 2048 1    1    1    1    1   \n"                                                            "
-    for (int i = 0; i < 3; i++) {
-      Serial.print("V");
-      Serial.print(i);
-      Serial.print("  ");
+    #if DEBUG_LOGGING
+      Serial.print("V#  WAVE     FREQ    A      D      S    R      PW   TEST RING SYNC GATE FILT\n");
+      //           "V1  Triangle 1234.56 12.345 12.345 12.345 12.345 2048 1    1    1    1    1   \n"
+      for (int i = 0; i < 3; i++) {
+        Serial.print("V");
+        Serial.print(i);
+        Serial.print("  ");
 
-      byte wave = get_voice_waveform(i);
-      if (wave == 0) {
-        Serial.print("Disabled");
-      } else if (wave == 1) {
-        Serial.print("Triangle");
-      } else if (wave == 2) {
-        Serial.print("Ramp    ");
-      } else if (wave == 4) {
-        Serial.print("Pulse   ");
-      } else if (wave == 8) {
-        Serial.print("Noise   ");
+        byte wave = get_voice_waveform(i);
+        if (wave == 0) {
+          Serial.print("Disabled");
+        } else if (wave == 1) {
+          Serial.print("Triangle");
+        } else if (wave == 2) {
+          Serial.print("Ramp    ");
+        } else if (wave == 4) {
+          Serial.print("Pulse   ");
+        } else if (wave == 8) {
+          Serial.print("Noise   ");
+        }
+
+        char float_string[] = "       ";
+
+        double f = get_voice_frequency(i);
+
+        Serial.print(" ");
+        float_as_padded_string(float_string, f, 4, 2, '0');
+        Serial.print(float_string);
+
+        double a = get_attack_seconds(i);
+        double d = get_decay_seconds(i);
+        double s = get_sustain_percent(i);
+        double r = get_release_seconds(i);
+
+        Serial.print(" ");
+        float_as_padded_string(float_string, a, 2, 3, '0');
+        Serial.print(float_string);
+
+        Serial.print(" ");
+        float_as_padded_string(float_string, d, 2, 3, '0');
+        Serial.print(float_string);
+
+        Serial.print(" ");
+        sprintf(float_string, "%3d", (int)(s * 100));
+        Serial.print(float_string);
+        Serial.print("%");
+
+        Serial.print(" ");
+        float_as_padded_string(float_string, r, 2, 3, '0');
+        Serial.print(float_string);
+
+        Serial.print(" ");
+        Serial.print(get_voice_test_bit(i));
+        Serial.print("    ");
+        Serial.print(get_voice_ring_mod(i));
+        Serial.print("    ");
+        Serial.print(get_voice_sync(i));
+        Serial.print("    ");
+        Serial.print(get_voice_gate(i));
+        Serial.print("    ");
+        Serial.print(get_filter_enabled_for_voice(i));
+        Serial.print("\n");
       }
 
-      char float_string[] = "       ";
+      Serial.print("Filter frequency: ");
+      Serial.print(get_filter_frequency());
+      Serial.print(" resonance: ");
+      Serial.print(get_filter_resonance());
+      Serial.print(" mode: ");
 
-      double f = get_voice_frequency(i);
-      // dtostrf(f, 7, 2, float_string);
-      // sprintf(float_string, "%7s", float_string);
-      // Serial.print(" ");
-      // Serial.print(float_string);
+      byte mask = sid_state_bytes[SID_REGISTER_ADDRESS_FILTER_MODE_VOLUME] & 0B01110000;
 
-      Serial.print(" ");
-      float_as_padded_string(float_string, f, 4, 2, '0');
-      Serial.print(float_string);
-
-      double a = get_attack_seconds(i);
-      double d = get_decay_seconds(i);
-      double s = get_sustain_percent(i);
-      double r = get_release_seconds(i);
-
-      Serial.print(" ");
-      float_as_padded_string(float_string, a, 2, 3, '0');
-      Serial.print(float_string);
-
-      Serial.print(" ");
-      float_as_padded_string(float_string, d, 2, 3, '0');
-      Serial.print(float_string);
-
-      Serial.print(" ");
-      sprintf(float_string, "%3d", (int)(s * 100));
-      Serial.print(float_string);
-      Serial.print("%");
-
-      Serial.print(" ");
-      float_as_padded_string(float_string, r, 2, 3, '0');
-      Serial.print(float_string);
-
-      Serial.print(" ");
-      Serial.print(get_voice_test_bit(i));
-      Serial.print("    ");
-      Serial.print(get_voice_ring_mod(i));
-      Serial.print("    ");
-      Serial.print(get_voice_sync(i));
-      Serial.print("    ");
-      Serial.print(get_voice_gate(i));
-      Serial.print("    ");
-      Serial.print(get_filter_enabled_for_voice(i));
+      Serial.print(mask & 0B01000000 ? "HP" : "--");
+      Serial.print(mask & 0B00100000 ? "BP" : "--");
+      Serial.print(mask & 0B00010000 ? "LP" : "--");
       Serial.print("\n");
+
+      Serial.print("Global Mode: ");
+
+      if (polyphony == 1 && legato_mode) {
+        Serial.print("Mono Legato");
+      } else if (polyphony == 1) {
+        Serial.print("Mono");
+      } else {
+        Serial.print("Poly");
+      }
+      if (volume_modulation_mode_active) {
+        Serial.print(" <volume modulation mode>");
+      } else if (pulse_width_modulation_mode_active) {
+        Serial.print(" <pulse width modulation mode>");
+      }
+      Serial.print("\n");
+
+      Serial.print("Volume: ");
+      Serial.print(get_volume());
+      Serial.print("\n");
+    #endif
+
+    Serial.print("{");
+    Serial.print(freeMemory());
+    Serial.print("} ");
+
+    Serial.print("oscillator_notes:\n");
+    for (int i = 0; i < 3; i++) {
+      Serial.print("{ .number=");
+      Serial.print(oscillator_notes[i].number);
+      Serial.print(", .on_time=");
+      Serial.print(oscillator_notes[i].on_time);
+      Serial.print(", .off_time=");
+      Serial.print(oscillator_notes[i].off_time);
+      Serial.print("}\n");
     }
 
-    Serial.print("Filter frequency: ");
-    Serial.print(get_filter_frequency());
-    Serial.print(" resonance: ");
-    Serial.print(get_filter_resonance());
-    Serial.print(" mode: ");
-
-    byte mask = sid_state_bytes[SID_REGISTER_ADDRESS_FILTER_MODE_VOLUME] & 0B01110000;
-
-    Serial.print(mask & 0B01000000 ? "HP" : "--");
-    Serial.print(mask & 0B00100000 ? "BP" : "--");
-    Serial.print(mask & 0B00010000 ? "LP" : "--");
-    Serial.print("\n");
-
-    Serial.print("Global Mode: ");
-
-    if (polyphony == 1 && legato_mode) {
-      Serial.print("Mono Legato");
-    } else if (polyphony == 1) {
-      Serial.print("Mono");
-    } else {
-      Serial.print("Poly");
-    }
-    if (volume_modulation_mode_active) {
-      Serial.print(" <volume modulation mode>");
-    } else if (pulse_width_modulation_mode_active) {
-      Serial.print(" <pulse width modulation mode>");
-    }
-    Serial.print("\n");
-
-    Serial.print("Volume: ");
-    Serial.print(get_volume());
-    Serial.print("\n");
-
-    Serial.print("Notes: {");
-    Serial.print(oscillator_notes[0].number);
-    Serial.print(", ");
-    Serial.print(oscillator_notes[1].number);
-    Serial.print(", ");
-    Serial.print(oscillator_notes[2].number);
-    Serial.print("}\n");
-
-    Serial.print("note_on_times: {");
-    Serial.print(oscillator_notes[0].on_time);
-    Serial.print(", ");
-    Serial.print(oscillator_notes[1].on_time);
-    Serial.print(", ");
-    Serial.print(oscillator_notes[2].on_time);
-    Serial.print("}\n");
-
-    Serial.print("note_off_times: {");
-    Serial.print(oscillator_notes[0].off_time);
-    Serial.print(", ");
-    Serial.print(oscillator_notes[1].off_time);
-    Serial.print(", ");
-    Serial.print(oscillator_notes[2].off_time);
-    Serial.print("}\n");
-
+    deque_inspect(notes);
   } else {
     for (int i = 0; i < 25; i++) {
       static char str[9];
@@ -1219,9 +1119,6 @@ void handle_state_dump_request(bool human) {
       }
 
       Serial.print(str);
-      Serial.print("  // ");
-      Serial.print(sid_register_short_names[i]);
-      Serial.print("\n");
     }
   }
 }
@@ -1245,7 +1142,7 @@ void handle_midi_input(Stream *midi_port) {
         while (midi_port->available() <= 0) {}
         controller_value = midi_port->read();
 
-        if (debug_sid_transfer) {
+        #if DEBUG_LOGGING
           Serial.print("\n");
           Serial.print("[");
           Serial.print(time_in_micros);
@@ -1255,96 +1152,96 @@ void handle_midi_input(Stream *midi_port) {
           Serial.print(" ");
           Serial.print(controller_value);
           Serial.print("\n");
-        }
+        #endif
 
         switch (controller_number) {
         case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_SQUARE:
-          handle_message_voice_waveform_change(0, SID_SQUARE, controller_value == 127);
+          handle_voice_waveform_change(0, SID_SQUARE, controller_value == 127);
           break;
         case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_SQUARE:
-          handle_message_voice_waveform_change(1, SID_SQUARE, controller_value == 127);
+          handle_voice_waveform_change(1, SID_SQUARE, controller_value == 127);
           break;
         case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_SQUARE:
-          handle_message_voice_waveform_change(2, SID_SQUARE, controller_value == 127);
+          handle_voice_waveform_change(2, SID_SQUARE, controller_value == 127);
           break;
         case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_TRIANGLE:
-          handle_message_voice_waveform_change(0, SID_TRIANGLE, controller_value == 127);
+          handle_voice_waveform_change(0, SID_TRIANGLE, controller_value == 127);
           break;
         case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_TRIANGLE:
-          handle_message_voice_waveform_change(1, SID_TRIANGLE, controller_value == 127);
+          handle_voice_waveform_change(1, SID_TRIANGLE, controller_value == 127);
           break;
         case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_TRIANGLE:
-          handle_message_voice_waveform_change(2, SID_TRIANGLE, controller_value == 127);
+          handle_voice_waveform_change(2, SID_TRIANGLE, controller_value == 127);
           break;
         case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_RAMP:
-          handle_message_voice_waveform_change(0, SID_RAMP, controller_value == 127);
+          handle_voice_waveform_change(0, SID_RAMP, controller_value == 127);
           break;
         case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_RAMP:
-          handle_message_voice_waveform_change(1, SID_RAMP, controller_value == 127);
+          handle_voice_waveform_change(1, SID_RAMP, controller_value == 127);
           break;
         case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_RAMP:
-          handle_message_voice_waveform_change(2, SID_RAMP, controller_value == 127);
+          handle_voice_waveform_change(2, SID_RAMP, controller_value == 127);
           break;
         case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_ONE_NOISE:
-          handle_message_voice_waveform_change(0, SID_NOISE, controller_value == 127);
+          handle_voice_waveform_change(0, SID_NOISE, controller_value == 127);
           break;
         case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_TWO_NOISE:
-          handle_message_voice_waveform_change(1, SID_NOISE, controller_value == 127);
+          handle_voice_waveform_change(1, SID_NOISE, controller_value == 127);
           break;
         case MIDI_CONTROL_CHANGE_SET_WAVEFORM_VOICE_THREE_NOISE:
-          handle_message_voice_waveform_change(2, SID_NOISE, controller_value == 127);
+          handle_voice_waveform_change(2, SID_NOISE, controller_value == 127);
           break;
 
         case MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_ONE:
           // replaces the triangle output of voice 1 with a ring modulated combination of voice 1 by voice 3
-          handle_message_voice_ring_mod_change(0, controller_value == 127);
+          handle_voice_ring_mod_change(0, controller_value == 127);
           break;
         case MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_TWO:
           // replaces the triangle output of voice 2 with a ring modulated combination of voice 2 by voice 1
-          handle_message_voice_ring_mod_change(1, controller_value == 127);
+          handle_voice_ring_mod_change(1, controller_value == 127);
           break;
         case MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_THREE:
           // replaces the triangle output of voice 3 with a ring modulated combination of voice 3 by voice 2
-          handle_message_voice_ring_mod_change(2, controller_value == 127);
+          handle_voice_ring_mod_change(2, controller_value == 127);
           break;
 
         case MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_ONE:
           // hard-syncs frequency of voice 1 to voice 3
-          handle_message_voice_sync_change(0, controller_value == 127);
+          handle_voice_sync_change(0, controller_value == 127);
           break;
         case MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_TWO:
           // hard-syncs frequency of voice 2 to voice 1
-          handle_message_voice_sync_change(1, controller_value == 127);
+          handle_voice_sync_change(1, controller_value == 127);
           break;
         case MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_THREE:
           // hard-syncs frequency of voice 3 to voice 2
-          handle_message_voice_sync_change(2, controller_value == 127);
+          handle_voice_sync_change(2, controller_value == 127);
           break;
 
         case MIDI_CONTROL_CHANGE_SET_TEST_VOICE_ONE:
-          handle_message_voice_test_change(0, controller_value == 127);
+          handle_voice_test_change(0, controller_value == 127);
           break;
         case MIDI_CONTROL_CHANGE_SET_TEST_VOICE_TWO:
-          handle_message_voice_test_change(1, controller_value == 127);
+          handle_voice_test_change(1, controller_value == 127);
           break;
         case MIDI_CONTROL_CHANGE_SET_TEST_VOICE_THREE:
-          handle_message_voice_test_change(2, controller_value == 127);
+          handle_voice_test_change(2, controller_value == 127);
           break;
 
         case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_ONE:
           pw_v1 = ((word)controller_value) << 5;
           pw_v1 += pw_v1_lsb;
-          handle_message_voice_pulse_width_change(0, pw_v1);
+          handle_voice_pulse_width_change(0, pw_v1);
           break;
         case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_TWO:
           pw_v2 = ((word)controller_value) << 5;
           pw_v2 += pw_v2_lsb;
-          handle_message_voice_pulse_width_change(1, pw_v2);
+          handle_voice_pulse_width_change(1, pw_v2);
           break;
         case MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_THREE:
           pw_v3 = ((word)controller_value) << 5;
           pw_v3 += pw_v3_lsb;
-          handle_message_voice_pulse_width_change(2, pw_v3);
+          handle_voice_pulse_width_change(2, pw_v3);
           break;
 
         // LSB messages will not trigger PW change on the SID!
@@ -1360,60 +1257,60 @@ void handle_midi_input(Stream *midi_port) {
           break;
 
         case MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_ONE:
-          handle_message_voice_attack_change(0, controller_value >> 3);
+          handle_voice_attack_change(0, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_TWO:
-          handle_message_voice_attack_change(1, controller_value >> 3);
+          handle_voice_attack_change(1, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_THREE:
-          handle_message_voice_attack_change(2, controller_value >> 3);
+          handle_voice_attack_change(2, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_ONE:
-          handle_message_voice_decay_change(0, controller_value >> 3);
+          handle_voice_decay_change(0, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_TWO:
-          handle_message_voice_decay_change(1, controller_value >> 3);
+          handle_voice_decay_change(1, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_THREE:
-          handle_message_voice_decay_change(2, controller_value >> 3);
+          handle_voice_decay_change(2, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_ONE:
-          handle_message_voice_sustain_change(0, controller_value >> 3);
+          handle_voice_sustain_change(0, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_TWO:
-          handle_message_voice_sustain_change(1, controller_value >> 3);
+          handle_voice_sustain_change(1, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_THREE:
-          handle_message_voice_sustain_change(2, controller_value >> 3);
+          handle_voice_sustain_change(2, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_ONE:
-          handle_message_voice_release_change(0, controller_value >> 3);
+          handle_voice_release_change(0, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_TWO:
-          handle_message_voice_release_change(1, controller_value >> 3);
+          handle_voice_release_change(1, controller_value >> 3);
           break;
         case MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_THREE:
-          handle_message_voice_release_change(2, controller_value >> 3);
+          handle_voice_release_change(2, controller_value >> 3);
           break;
 
         case MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_ONE:
-          handle_message_voice_filter_change(0, controller_value == 127);
+          handle_voice_filter_change(0, controller_value == 127);
           break;
         case MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_TWO:
-          handle_message_voice_filter_change(1, controller_value == 127);
+          handle_voice_filter_change(1, controller_value == 127);
           break;
         case MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_THREE:
-          handle_message_voice_filter_change(2, controller_value == 127);
+          handle_voice_filter_change(2, controller_value == 127);
           break;
 
         case MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_ONE:
-          handle_message_voice_detune_change(0, ((controller_value / 64.0) - 1));
+          handle_voice_detune_change(0, ((controller_value / 64.0) - 1));
           break;
         case MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_TWO:
-          handle_message_voice_detune_change(1, ((controller_value / 64.0) - 1));
+          handle_voice_detune_change(1, ((controller_value / 64.0) - 1));
           break;
         case MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_THREE:
-          handle_message_voice_detune_change(2, ((controller_value / 64.0) - 1));
+          handle_voice_detune_change(2, ((controller_value / 64.0) - 1));
           break;
 
         case MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_LP:
@@ -1470,9 +1367,9 @@ void handle_midi_input(Stream *midi_port) {
           }
           break;
 
-        case MIDI_CONTROL_CHANGE_TOGGLE_SID_TRANSFER_DEBUGGING:
-          debug_sid_transfer = (controller_value == 127);
-          break;
+        // case MIDI_CONTROL_CHANGE_TOGGLE_SID_TRANSFER_DEBUGGING:
+        //   DEBUG_LOGGING = (controller_value == 127);
+        //   break;
 
         case MIDI_CONTROL_CHANGE_SET_GLIDE_TIME_LSB:
           glide_time_raw_lsb = controller_value;
@@ -1500,7 +1397,7 @@ void handle_midi_input(Stream *midi_port) {
         while (midi_port->available() <= 0) {}
         data_byte_one = midi_port->read();
 
-        if (debug_sid_transfer) {
+        #if DEBUG_LOGGING
           Serial.print("\n");
           Serial.print("[");
           Serial.print(time_in_micros);
@@ -1508,9 +1405,9 @@ void handle_midi_input(Stream *midi_port) {
           Serial.print("Received MIDI PC ");
           Serial.print(data_byte_one);
           Serial.print("\n");
-        }
+        #endif
 
-        handle_message_program_change(data_byte_one);
+        handle_program_change(data_byte_one);
         break;
 
       case MIDI_PITCH_BEND:
@@ -1522,7 +1419,7 @@ void handle_midi_input(Stream *midi_port) {
         pitchbend = (pitchbend << 7);
         pitchbend |= data_byte_one;
 
-        if (debug_sid_transfer) {
+        #if DEBUG_LOGGING
           Serial.print("\n");
           Serial.print("[");
           Serial.print(time_in_micros);
@@ -1530,9 +1427,9 @@ void handle_midi_input(Stream *midi_port) {
           Serial.print("Received MIDI PB ");
           Serial.print(pitchbend);
           Serial.print("\n");
-        }
+        #endif
 
-        handle_message_pitchbend_change(pitchbend);
+        handle_pitchbend_change(pitchbend);
         break;
       case MIDI_NOTE_ON:
         while (midi_port->available() <= 0) {}
@@ -1540,7 +1437,7 @@ void handle_midi_input(Stream *midi_port) {
         while (midi_port->available() <= 0) {}
         data_byte_two = midi_port->read(); // "velocity", which we don't use
 
-        if (debug_sid_transfer) {
+        #if DEBUG_LOGGING
           Serial.print("\n");
           Serial.print("[");
           Serial.print(time_in_micros);
@@ -1548,10 +1445,10 @@ void handle_midi_input(Stream *midi_port) {
           Serial.print("Received MIDI Note On ");
           Serial.print(data_byte_one);
           Serial.print("\n");
-        }
+        #endif
 
         if (data_byte_one < 96) { // SID can't handle freqs > B7
-          handle_message_note_on(data_byte_one);
+          handle_note_on(data_byte_one);
         }
         break;
       case MIDI_NOTE_OFF:
@@ -1560,7 +1457,7 @@ void handle_midi_input(Stream *midi_port) {
         while (midi_port->available() <= 0) {}
         data_byte_two = midi_port->read(); // "velocity", which we don't use
 
-        if (debug_sid_transfer) {
+        #if DEBUG_LOGGING
           Serial.print("\n");
           Serial.print("[");
           Serial.print(time_in_micros);
@@ -1568,9 +1465,11 @@ void handle_midi_input(Stream *midi_port) {
           Serial.print("Received MIDI Note Off ");
           Serial.print(data_byte_one);
           Serial.print("\n");
-        }
+        #endif
 
-        handle_message_note_off(data_byte_one);
+        if (data_byte_one < 96) { // SID can't handle freqs > B7
+          handle_note_off(data_byte_one);
+        }
         break;
       }
     }
@@ -1578,9 +1477,26 @@ void handle_midi_input(Stream *midi_port) {
 }
 
 void clean_slate() {
-  memset(sid_state_bytes, 0, 25*sizeof(*sid_state_bytes));
+  memset(sid_state_bytes, 0, 25 * sizeof(*sid_state_bytes));
   memset(voice_detune_percents, 0, MAX_POLYPHONY*sizeof(*voice_detune_percents));
+  deque_empty(notes);
   nullify_notes_playing();
+
+  #if DEBUG_LOGGING
+    unsigned int dq_bytes = sizeof(deque);
+    unsigned int ht_bytes = sizeof(hash_table);
+    unsigned int db_bytes = sizeof(notes->ht->array) * sizeof(maybe_hash_table_element);
+
+    Serial.print(F("allocated hash_deque bytes: "));
+    Serial.print(dq_bytes);
+    Serial.print(F(" + "));
+    Serial.print(ht_bytes);
+    Serial.print(F(" + "));
+    Serial.print(db_bytes);
+    Serial.print(F(" = "));
+    Serial.print(dq_bytes + ht_bytes + db_bytes);
+    Serial.print(F(" bytes\n"));
+  #endif
 
   polyphony = 3;
   legato_mode = false;
@@ -1640,16 +1556,27 @@ void setup() {
 
 void loop () {
   time_in_micros = micros();
-  time_in_seconds = time_in_micros / 1000000.0;
+  time_in_seconds = (unsigned long) (time_in_micros / 1000000.0);
 
   // SID has a bug where its oscillators sometimes "leak" the sound of previous
   // notes. To work around this, we have to set each oscillator's frequency to 0
   // only when we are certain it's past its ADSR time.
   for (int i = 0; i < 3; i++) {
-    if (oscillator_notes[i].number == 0 && oscillator_notes[i].off_time > 0 && (time_in_micros > (oscillator_notes[i].off_time + get_release_seconds(i) * 1000000.0))) {
+    if (oscillator_notes[i].off_time > 0 && (time_in_micros > (oscillator_notes[i].off_time + get_release_seconds(i) * 1000000.0))) {
       // we're past the release phase, so the voice can't be making any noise, so we must "fully" silence it
       sid_set_voice_frequency(i, 0);
+      oscillator_notes[i].on_time = 0;
       oscillator_notes[i].off_time = 0;
+
+      #if DEBUG_LOGGING
+        Serial.print("leak detector got one: ");
+        byte _n = oscillator_notes[i].number;
+        Serial.print(_n);
+        Serial.print("\n");
+      #endif
+
+      deque_remove_by_key(notes, oscillator_notes[i].number);
+      oscillator_notes[i].number = 0;
     }
   }
 
@@ -1669,50 +1596,12 @@ void loop () {
     for (int i = 0; i < MAX_POLYPHONY; i++) {
       if (oscillator_notes[i].number != 0) {
         freq_after_pb_and_detune = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
-        freq_after_pb_and_detune = MIDI_NOTES_TO_FREQUENCIES[glide_from] * pow(2, freq_after_pb_and_detune / 12.0);
+        freq_after_pb_and_detune = note_number_to_frequency(glide_from) * pow(2, freq_after_pb_and_detune / 12.0);
 
-        glide_frequency_distance = MIDI_NOTES_TO_FREQUENCIES[glide_to] - MIDI_NOTES_TO_FREQUENCIES[glide_from];
+        glide_frequency_distance = note_number_to_frequency(glide_to) - note_number_to_frequency(glide_from);
         glide_hertz_to_add = glide_frequency_distance * glide_percentage_progress;
 
         sid_set_voice_frequency(i, (word)(freq_after_pb_and_detune + glide_hertz_to_add));
-
-        if (debug_glide_updates && i == 0) {
-          Serial.print(time_in_micros);
-          Serial.print("  from: ");
-          Serial.print(glide_from);
-          Serial.print("  to: ");
-          Serial.print(glide_to);
-          Serial.print("  freq: ");
-          Serial.print(get_voice_frequency(i));
-          Serial.print("\n");
-          Serial.print("  glide_time_millis: ");
-          Serial.print(glide_time_millis);
-          Serial.print("\n");
-          Serial.print("  glide_from_hz: ");
-          Serial.print(MIDI_NOTES_TO_FREQUENCIES[glide_from]);
-          Serial.print("\n");
-          Serial.print("  glide_to_hz: ");
-          Serial.print(MIDI_NOTES_TO_FREQUENCIES[glide_to]);
-          Serial.print("\n");
-          Serial.print("  glide_duration_so_far_millis: ");
-          Serial.print(glide_duration_so_far_millis);
-          Serial.print("\n");
-          Serial.print("  glide_percentage_progress: ");
-          Serial.print(glide_percentage_progress);
-          Serial.print("\n");
-          Serial.print("  glide_frequency_distance: ");
-          Serial.print(glide_frequency_distance);
-          Serial.print("\n");
-          Serial.print("  glide_hertz_to_add: ");
-          Serial.print(glide_hertz_to_add);
-          Serial.print("\n");
-          Serial.print("  freq_after_pb_and_detune: ");
-          Serial.print(freq_after_pb_and_detune);
-          Serial.print("\n");
-          Serial.print("  final_frequency: ");
-          Serial.print(freq_after_pb_and_detune + glide_hertz_to_add);
-          Serial.print("\n");
-        }
       }
     }
 
@@ -1735,7 +1624,7 @@ void loop () {
       int note = oscillator_notes[i].number;
 
       if (note != 0) {
-        double note_frequency = MIDI_NOTES_TO_FREQUENCIES[note];
+        double note_frequency = note_number_to_frequency(note);
         double temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
         note_frequency = note_frequency * pow(2, temp_double / 12.0);
 
@@ -1774,7 +1663,7 @@ void loop () {
 
     for (int i = 0; i < oscillator_notes_count; i++) {
       int note = oscillator_notes[i].number;
-      double note_frequency = MIDI_NOTES_TO_FREQUENCIES[note];
+      double note_frequency = note_number_to_frequency(note);
 
       double temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
       note_frequency = note_frequency * pow(2, temp_double / 12.0);
