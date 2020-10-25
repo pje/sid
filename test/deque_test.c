@@ -1,5 +1,5 @@
 #include "test_helper.h"
-#include "../deque.h"
+#include "../src/deque.h"
 
 #define NOTE_FIXTURES                                                          \
   note note0 = {.number=100, .on_time=1, .off_time=2, .voiced_by_oscillator=0};\

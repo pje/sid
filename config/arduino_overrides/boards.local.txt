@@ -1,0 +1,2 @@
+micro.name=Arduino Micro (No RXLED)
+micro.build.variant=micro_norxled

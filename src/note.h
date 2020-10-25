@@ -1,5 +1,5 @@
-#ifndef NOTE_H
-#define NOTE_H
+#ifndef SRC_NOTE_H
+#define SRC_NOTE_H
 
 #include <stdbool.h>
 #include "util.h"
@@ -20,5 +20,4 @@ struct note {
 
 typedef struct note note;
 
-#endif /* NOTE_H */
-
+#endif /* SRC_NOTE_H */

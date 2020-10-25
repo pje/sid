@@ -1,5 +1,5 @@
-#ifndef DEQUE_H
-#define DEQUE_H
+#ifndef SRC_DEQUE_H
+#define SRC_DEQUE_H
 
 #include <math.h>
 #include <stdio.h>
@@ -58,7 +58,7 @@ void deque_free(deque *dq);
 // "private" below
 static maybe_node_data _deque_remove_helper(deque *dq, unsigned int key);
 static void _note_node_print_function(node *n, FILE *stream);
-static void _deque_inspect_nodes(node *n, node_print_function_t *print_node, FILE *stream);
+static void _deque_inspect_nodes(deque *dq, node *n, node_print_function_t *print_node, FILE *stream, unsigned int iterations);
 static void _deque_root_print_function(deque *l);
 
 // BEGIN the section of code that stands for "generic" in this cursed language
@@ -104,7 +104,7 @@ static void _note_node_print_function(node *n, FILE *stream) {
 // O(n)
 void deque_inspect(deque *dq) {
   _deque_root_print_function(dq);
-  _deque_inspect_nodes(dq->first, dq->node_print_function, dq->stream);
+  _deque_inspect_nodes(dq, dq->first, dq->node_print_function, dq->stream, 0);
   fprintf(dq->stream, "%s", "\n");
 }
 
@@ -294,14 +294,17 @@ static maybe_node_data _deque_remove_helper(deque *dq, unsigned int k) {
   return (maybe_node_data){ .exists=true, .unwrap=removed.unwrap.data };
 }
 
-static void _deque_inspect_nodes(node *n, node_print_function_t *print_node, FILE *stream) {
+static void _deque_inspect_nodes(deque *dq, node *n, node_print_function_t *print_node, FILE *stream, unsigned int iterations) {
   if (n == NULL) {
     return;
+  }
+  if (iterations > dq->max_length > iterations) {
+    printf("!!!\n");
   }
   print_node(n, stream);
   if (n->next) {
     fprintf(stream, "%s", "-");
-    _deque_inspect_nodes(n->next, print_node, stream);
+    _deque_inspect_nodes(dq, n->next, print_node, stream, ++iterations);
   } else {
     return;
   }
@@ -311,4 +314,4 @@ static void _deque_root_print_function(deque *dq) {
   fprintf(dq->stream, "dq(%d/%d): ", deque_length(dq), dq->max_length);
 }
 
-#endif /* DEQUE_H */
+#endif /* SRC_DEQUE_H */

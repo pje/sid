@@ -1,5 +1,5 @@
-#ifndef NODE_H
-#define NODE_H
+#ifndef SRC_NODE_H
+#define SRC_NODE_H
 
 #include <stdbool.h>
 
@@ -21,4 +21,4 @@ struct node {
   unsigned int key;
 };
 
-#endif /* NODE_H */
+#endif /* SRC_NODE_H */

@@ -1,5 +1,5 @@
 #include "test_helper.h"
-#include "../util.h"
+#include "../src/util.h"
 
 int test_sine_waveform() {
   double result = sine_waveform(1.0, 0, 1.0, 0.0);

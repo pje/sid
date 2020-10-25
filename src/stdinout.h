@@ -1,5 +1,5 @@
-#ifndef STDINOUT_H
-#define STDINOUT_H
+#ifndef SRC_STDINOUT_H
+#define SRC_STDINOUT_H
 
 // no need to make an instance of this yourself
 class initializeSTDINOUT {
@@ -13,4 +13,4 @@ public:
 // static means the names won't collide
 static initializeSTDINOUT initializeSTDINOUT_obj;
 
-#endif //STDINOUT_H
+#endif /* SRC_STDINOUT_H */

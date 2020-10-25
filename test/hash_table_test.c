@@ -1,7 +1,7 @@
 #include "test_helper.h"
-#include "../note.h"
+#include "../src/note.h"
 #define HASH_TABLE_VAL struct note // easier to test than node*
-#include "../hash_table.h"
+#include "../src/hash_table.h"
 
 int test_hash_table() {
   hash_table *h = hash_table_initialize(3);

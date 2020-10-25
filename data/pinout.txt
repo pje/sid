@@ -1,26 +1,29 @@
+# see also ~/Library/Arduino15/packages/arduino/hardware/avr/1.8.3/variants/micro/pins_arduino.h
+
 # Wired Pin Connections from Arduino Micro -> SID
 
-Arduino Micro                    SID Pin
+Arduino Micro Pin Names             ->     SID Pins
 
-PB0     RXLED (SS)               D0
-PB1     SCK                      D1
-PB2     MOSI                     D2
-PB3     MISO                     D3
-PB4     Digital Pin 8            D4
-PB5     Digital Pin 9            D5
-PB6     Digital Pin 10           D6
-PB7     Digital Pin 11           D7
-
-PF0     Analog In 5              A0
-PF1     Analog In 4              A1
-PF2     -                        -
-PF3     -                        -
-PF4     Analog In 3              A2
-PF5     Analog In 2              A3
-PF6     Analog In 1              A4
-PF7     Analog In 0              -
-
--       Digital Pin 13           CS
+PB0     8 (Digital 17 (RXLED) (SS)) ->     D0
+PB1     9 (Digital 15 (SCK)         ->     D1
+PB2    10 (Digital 16 (MOSI)        ->     D2
+PB3    11 (Digital 14 (MISO)        ->     D3
+PB4    28 (Digital 8)               ->     D4
+PB5    29 (Digital 9)               ->     D5
+PB6    30 (Digital 10)              ->     D6
+PB7    12 (Digital 11)              ->     D7
+                                           -
+PF0    41 (Analog 5)                ->     A0
+PF1    40 (Analog 4)                ->     A1
+PF2    -                                   -
+PF3    -                                   -
+PF4    39 (Analog 3)                ->     A2
+PF5    38 (Analog 2)                ->     A3
+PF6    37 (Analog 1)                ->     A4
+PF7    36 (Analog 0)                ->     -
+                                           -
+PC7    32 (Digital 13)              ->     CS
+PC6    31 (Digital 5)               ->     Ø2
 
 
 

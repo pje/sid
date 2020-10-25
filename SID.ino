@@ -2,11 +2,6 @@
 #include <avr/io.h>
 #include <math.h>
 #include <usbmidi.h>
-#include "hash_table.h"
-#include "stdinout.h"
-#include "note.h"
-#include "util.h"
-#include "deque.h"
 
 #ifdef __arm__
 // should use uinstd.h to define sbrk but Due causes a conflict
@@ -25,6 +20,11 @@ int freeMemory() {
   return __brkval ? &top - __brkval : &top - __malloc_heap_start;
 #endif  // __arm__
 }
+#include "src/hash_table.h"
+#include "src/stdinout.h"
+#include "src/note.h"
+#include "src/util.h"
+#include "src/deque.h"
 
 #define DEBUG_LOGGING true
 

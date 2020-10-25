@@ -1,5 +1,5 @@
-#ifndef HASH_TABLE_H
-#define HASH_TABLE_H
+#ifndef SRC_HASH_TABLE_H
+#define SRC_HASH_TABLE_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -61,7 +61,10 @@ maybe_hash_table_val hash_table_remove(hash_table *h, HASH_TABLE_KEY key);
 void hash_table_empty(hash_table *h);
 void hash_table_element_inspect(const hash_table_element *e);
 void hash_table_inspect(const hash_table *h);
+float hash_table_load_factor(hash_table *h);
+float hash_table_collision_ratio(hash_table *h);
 static HASH_TABLE_KEY hash(const hash_table *h, HASH_TABLE_KEY key);
+static unsigned int hash_table_num_collisions(hash_table *h);
 static maybe_uint _find_slot(const hash_table *h, HASH_TABLE_KEY key);
 
 hash_table *hash_table_initialize(unsigned int max_size) {
@@ -90,20 +93,6 @@ HASH_TABLE_VAL *hash_table_get(hash_table *h, HASH_TABLE_KEY key) {
 }
 
 HASH_TABLE_VAL *hash_table_set(hash_table *h, HASH_TABLE_KEY key, HASH_TABLE_VAL value) {
-  // unsigned int index = hash(h, key);
-  // maybe_hash_table_element e = { .exists=true, .unwrap={ .key=key, .value=value } };
-
-  // for (unsigned int i = index, max = index + h->max_size; i < max; i++) {
-  //   if (!h->array[i % h->max_size].exists) {
-  //     index = i;
-  //     break;
-  //   }
-  // }
-
-  // h->array[index] = e;
-  // h->size++;
-  // return true;
-
   maybe_uint slot = _find_slot(h, key);
 
   if (slot.exists) {
@@ -179,13 +168,13 @@ float hash_table_load_factor(hash_table *h) {
   return((float)h->size / h->max_size);
 }
 
-unsigned int hash_table_num_collisions(hash_table *h) {
+static unsigned int hash_table_num_collisions(hash_table *h) {
   unsigned int num_collisions = 0;
-  for (unsigned int i; i < h->size; i++) {
+  for (unsigned int i = 0; i < h->size; i++) {
     if (h->array[i].exists) {
       hash_table_element e = h->array[i].unwrap;
 
-      if (hash(h, e.key) != e.key) {
+      if (hash(h, e.key) != i) {
         maybe_hash_table_element in_our_spot = h->array[hash(h, e.key)];
 
         if (in_our_spot.exists) {
@@ -199,7 +188,7 @@ unsigned int hash_table_num_collisions(hash_table *h) {
 }
 
 float hash_table_collision_ratio(hash_table *h) {
-  return (float) hash_table_num_collisions(h) / h->size;
+  return((float) hash_table_num_collisions(h) / (float)h->size);
 }
 
 void hash_table_empty(hash_table *h) {
@@ -237,4 +226,4 @@ void hash_table_free(hash_table *h) {
   free(h);
 }
 
-#endif /* HASH_TABLE_H */
+#endif /* SRC_HASH_TABLE_H */
