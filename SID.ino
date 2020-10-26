@@ -13,34 +13,14 @@
 #define DEBUG_LOGGING true
 
 const unsigned int deque_size = 32; // the number of notes that can be held simultaneously
-deque *notes = deque_initialize(deque_size, stdout, _note_indexer, _note_node_print_function);
-
 const int ARDUINO_SID_CHIP_SELECT_PIN = 13; // wired to SID's CS pin
 const int ARDUINO_SID_MASTER_CLOCK_PIN = 5; // wired to SID's Ø2 pin
-
 const byte MAX_POLYPHONY = 3;
 const byte DEFAULT_PITCH_BEND_SEMITONES = 5;
-const double DEFAULT_GLIDE_TIME_MILLIS = 100.0;
+const float DEFAULT_GLIDE_TIME_MILLIS = 100.0;
 const unsigned int GLIDE_TIME_MIN_MILLIS = 1;
 const unsigned int GLIDE_TIME_MAX_MILLIS = 10000;
 const word MAX_PULSE_WIDTH_VALUE = 4095;
-
-byte polyphony = 3;
-bool legato_mode = false;
-float glide_time_millis = DEFAULT_GLIDE_TIME_MILLIS;
-word glide_time_raw_word;
-byte glide_time_raw_lsb;
-unsigned long glide_start_time_micros = 0;
-byte glide_to = 0;
-byte glide_from = 0;
-
-struct note oscillator_notes[3] = { { .number=0, .on_time=0, .off_time=0 } };
-
-int midi_pitch_bend_max_semitones = DEFAULT_PITCH_BEND_SEMITONES;
-double current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
-double voice_detune_percents[MAX_POLYPHONY] = { 0.0, 0.0, 0.0 }; // [-1.0 .. 1.0]
-int detune_max_semitones = 5;
-
 const word DEFAULT_PULSE_WIDTH = 2048; // (2**12 - 1) / 2
 const byte DEFAULT_WAVEFORM = SID_TRIANGLE;
 const byte DEFAULT_ATTACK = 0;
@@ -50,7 +30,20 @@ const byte DEFAULT_RELEASE = 0;
 const unsigned short int DEFAULT_FILTER_FREQUENCY = 1000;
 const byte DEFAULT_FILTER_RESONANCE = 15;
 const byte DEFAULT_VOLUME = 15;
+const unsigned int PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY = 65535;
+const float UPDATE_EVERY_MICROS = (100.0 / 4.41);
 
+byte polyphony = 3;
+bool legato_mode = false;
+float glide_time_millis = DEFAULT_GLIDE_TIME_MILLIS;
+word glide_time_raw_word;
+byte glide_time_raw_lsb;
+unsigned long glide_start_time_micros = 0;
+byte glide_to = 0;
+byte glide_from = 0;
+int midi_pitch_bend_max_semitones = DEFAULT_PITCH_BEND_SEMITONES;
+double current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
+int detune_max_semitones = 5;
 // experimental: used to implement 14-bit resolution for PW values spread over two sequential CC messages
 word pw_v1     = 0;
 byte pw_v1_lsb = 0;
@@ -58,30 +51,25 @@ word pw_v2     = 0;
 byte pw_v2_lsb = 0;
 word pw_v3     = 0;
 byte pw_v3_lsb = 0;
-
 word filter_frequency = 0;
 byte filter_frequency_lsb = 0;
-
-// used to implement RPN messages
-word rpn_value = 0;
-word data_entry = 0;
+word rpn_value = 0; // used to implement RPN messages
+word data_entry = 0; // used to implement RPN messages
 
 // You know that click when we change the SID's volume? Turns out if we modulate
 // that click we can generate arbitrary 4-bit wveforms including sine waves and
 // sample playback. (Currently this mode just means "4-bit sine")
 bool volume_modulation_mode_active = false;
-
 bool pulse_width_modulation_mode_active = false;
-const unsigned int PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY = 65535;
 
 unsigned long last_update = 0;
 unsigned long last_glide_update_micros = 0;
-const float update_every_micros = (100.0 / 4.41);
-
 unsigned long time_in_micros = 0;
 unsigned long time_in_seconds = 0;
 
-void clean_slate();
+struct note oscillator_notes[3] = { { .number=0, .on_time=0, .off_time=0 } };
+double voice_detune_percents[MAX_POLYPHONY] = { 0.0, 0.0, 0.0 }; // [-1.0 .. 1.0]
+deque *notes = deque_initialize(deque_size, stdout, _note_indexer, _note_node_print_function);
 
 void clock_high() {
   uint8_t oldSREG = SREG;
@@ -443,6 +431,8 @@ void initialize_glide_state() {
   glide_from = 0;
 }
 
+void clean_slate();
+
 void handle_program_change(byte program_number) {
   switch (program_number) {
   case MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_PARAPHONIC:
@@ -457,14 +447,9 @@ void handle_program_change(byte program_number) {
     }
     legato_mode = false;
     break;
-  case MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC:
+  case MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC_UNISON:
     polyphony = 1;
     legato_mode = false;
-    initialize_glide_state();
-    break;
-  case MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC_LEGATO:
-    polyphony = 1;
-    legato_mode = true;
     initialize_glide_state();
     break;
   case MIDI_PROGRAM_CHANGE_HARDWARE_RESET:
@@ -497,7 +482,6 @@ void handle_state_dump_request(bool human) {
   if (human) {
     #if DEBUG_LOGGING
       printf("V#  WAVE     FREQ    A      D      S    R      PW   TEST RING SYNC GATE FILT\n");
-      //           "V1  Triangle 1234.56 12.345 12.345 12.345 12.345 2048 1    1    1    1    1   \n"
       for (unsigned int i = 0; i < 3; i++) {
         printf("V%u  ", i);
 
@@ -556,7 +540,7 @@ void handle_state_dump_request(bool human) {
       printf("%s", mask & SID_FILTER_LP ? "LP" : "--");
       printf("\n");
 
-      printf("Global Mode: %s", polyphony == 1 ? "Mono" : "Para");
+      printf("Global Mode: %s\n", polyphony == 1 ? "Mono Unison" : "Paraphonic");
 
       if (volume_modulation_mode_active) {
         printf(" <volume modulation mode>\n");
@@ -598,7 +582,7 @@ void handle_midi_input(Stream *midi_port) {
         controller_value = midi_port->read();
 
         #if DEBUG_LOGGING
-          printf("[%zu] Received MIDI CC %u %u\n", time_in_micros, controller_number, controller_value);
+          printf("[%lu] Received MIDI CC %u %u\n", time_in_micros, controller_number, controller_value);
         #endif
 
         switch (controller_number) {
@@ -822,6 +806,9 @@ void handle_midi_input(Stream *midi_port) {
         case MIDI_CONTROL_CHANGE_SET_GLIDE_TIME: // controller_value is 7-bit
           glide_time_raw_word = (((word)controller_value) << 7) + glide_time_raw_lsb;
           glide_time_millis = ((glide_time_raw_word / 16383.0) * (GLIDE_TIME_MAX_MILLIS - GLIDE_TIME_MIN_MILLIS)) + GLIDE_TIME_MIN_MILLIS;
+          if (glide_time_millis < GLIDE_TIME_MIN_MILLIS) {
+            glide_time_millis = 0;
+          }
           break;
 
         case MIDI_CONTROL_CHANGE_TOGGLE_ALL_TEST_BITS:
@@ -842,7 +829,7 @@ void handle_midi_input(Stream *midi_port) {
         data_byte_one = midi_port->read();
 
         #if DEBUG_LOGGING
-          printf("[%zu] Received MIDI PC %u\n", time_in_micros, data_byte_one);
+          printf("[%lu] Received MIDI PC %u\n", time_in_micros, data_byte_one);
         #endif
 
         handle_program_change(data_byte_one);
@@ -858,7 +845,7 @@ void handle_midi_input(Stream *midi_port) {
         pitchbend |= data_byte_one;
 
         #if DEBUG_LOGGING
-          printf("[%zu] Received MIDI PB %u\n", time_in_micros, pitchbend);
+          printf("[%lu] Received MIDI PB %u\n", time_in_micros, pitchbend);
         #endif
 
         handle_pitchbend_change(pitchbend);
@@ -870,7 +857,7 @@ void handle_midi_input(Stream *midi_port) {
         data_byte_two = midi_port->read(); // "velocity", which we don't use
 
         #if DEBUG_LOGGING
-          printf("[%zu] Received MIDI Note On %u\n", time_in_micros, data_byte_one);
+          printf("[%lu] Received MIDI Note On %u\n", time_in_micros, data_byte_one);
         #endif
 
         if (data_byte_one < 96) { // SID can't handle freqs > B7
@@ -884,7 +871,7 @@ void handle_midi_input(Stream *midi_port) {
         data_byte_two = midi_port->read(); // "velocity", which we don't use
 
         #if DEBUG_LOGGING
-          printf("[%zu] Received MIDI Note Off %u\n", time_in_micros, data_byte_one);
+          printf("[%lu] Received MIDI Note Off %u\n", time_in_micros, data_byte_one);
         #endif
 
         if (data_byte_one < 96) { // SID can't handle freqs > B7
@@ -990,7 +977,7 @@ void loop () {
       glide_time_millis > 0 &&
       (oscillator_notes[0].number != 0 || oscillator_notes[1].number != 0 || oscillator_notes[2].number != 0 ) &&
       ((time_in_micros - (glide_time_millis * 1000.0)) <= glide_start_time_micros) &&
-      ((time_in_micros - last_glide_update_micros) > update_every_micros)) {
+      ((time_in_micros - last_glide_update_micros) > UPDATE_EVERY_MICROS)) {
 
     double glide_duration_so_far_millis = (time_in_micros - glide_start_time_micros) / 1000.0;
     double glide_percentage_progress = glide_duration_so_far_millis / glide_time_millis;
@@ -1018,7 +1005,7 @@ void loop () {
   if (
     volume_modulation_mode_active &&
     (oscillator_notes[0].number != 0 || oscillator_notes[1].number != 0 || oscillator_notes[2].number != 0 ) &&
-    ((time_in_micros - last_update) > update_every_micros)) {
+    ((time_in_micros - last_update) > UPDATE_EVERY_MICROS)) {
     double volume = 0;
     int oscillator_notes_count = 0;
     for (int i = 0; i < 3; i++) {
@@ -1058,7 +1045,7 @@ void loop () {
   if (
     pulse_width_modulation_mode_active &&
     (oscillator_notes[0].number != 0 || oscillator_notes[1].number != 0 || oscillator_notes[2].number != 0 ) &&
-    ((time_in_micros - last_update) > update_every_micros)) {
+    ((time_in_micros - last_update) > UPDATE_EVERY_MICROS)) {
     int oscillator_notes_count = 0;
     for (int i = 0; i < 3; i++) {
       if (oscillator_notes[i].number != 0) {

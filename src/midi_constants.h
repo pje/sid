@@ -89,8 +89,7 @@ const byte MIDI_CONTROL_CHANGE_ALL_NOTES_OFF                        = 123;
 
 const byte MIDI_CHANNEL = 0; // "channel 1" (zero-indexed)
 const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_PARAPHONIC           = 0;
-const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC           = 1;
-const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC_LEGATO    = 2;
+const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC_UNISON    = 1;
 const byte MIDI_PROGRAM_CHANGE_HARDWARE_RESET                       = 127;
 
 #endif /* SRC_MIDI_CONSTANTS_H */
