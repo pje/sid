@@ -3,7 +3,7 @@
 #define HASH_TABLE_VAL struct note // easier to test than node*
 #include "../src/hash_table.h"
 
-int test_hash_table() {
+void test_hash_table() {
   hash_table *h = hash_table_initialize(3);
 
   assert_int_eq(3, h->max_size);
@@ -137,8 +137,6 @@ int test_hash_table() {
   assert_float_eq(0.0, hash_table_load_factor(h));
 
   hash_table_free(h);
-
-  return 0;
 }
 
 int main() {
@@ -147,5 +145,5 @@ int main() {
   test_hash_table();
 
   printf("\n");
-  return 0;
+  return TEST_FAILURE_COUNT;
 }

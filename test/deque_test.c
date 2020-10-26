@@ -4,9 +4,9 @@
 #define NOTE_FIXTURES                                                          \
   note note0 = {.number=100, .on_time=1, .off_time=2, .voiced_by_oscillator=0};\
   note note1 = {.number=101, .on_time=2, .off_time=3, .voiced_by_oscillator=1};\
-  note note2 = {.number=102, .on_time=3, .off_time=4, .voiced_by_oscillator=2};\
+  note note2 = {.number=102, .on_time=3, .off_time=4, .voiced_by_oscillator=2};
 
-int test_deque_initialize() {
+void test_deque_initialize() {
   deque *dq = deque_initialize(3, stdout, _note_indexer, _note_node_print_function);
 
   assert_int_eq(3, dq->max_length);
@@ -48,16 +48,14 @@ int test_deque_initialize() {
   assert_int_eq(101, dq->last->previous->data.number);
   assert_int_eq(100, dq->last->previous->previous->data.number);
   assert_null(dq->last->previous->previous->previous);
-
-  return 0;
 }
 
-int test_deque_append() {
+void test_deque_append_replace() {
   deque *dq = deque_initialize(127, stdout, _note_indexer, _note_node_print_function);
 
   NOTE_FIXTURES;
 
-  deque_append(dq, note0);
+  deque_append_replace(dq, note0);
   assert_not_null(dq->first);
   assert_not_null(dq->last);
   assert_int_eq(1, deque_length(dq));
@@ -66,7 +64,7 @@ int test_deque_append() {
   assert_int_eq(100, dq->last->data.number);
   assert_not_null(dq->last);
 
-  deque_append(dq, note1);
+  deque_append_replace(dq, note1);
   assert_int_eq(101, dq->last->data.number);
   assert_int_eq(2, deque_length(dq));
   assert_not_null(dq->first->next);
@@ -75,18 +73,22 @@ int test_deque_append() {
   assert_int_eq(100, dq->last->previous->data.number);
   assert_not_null(dq->last);
 
-  deque_append(dq, note2);
+  deque_append_replace(dq, note2);
   assert_int_eq(102, dq->last->data.number);
   assert_int_eq(3, deque_length(dq));
   assert_not_null(dq->last);
 
+  deque_append_replace(dq, note2); // since we use a hashmap, append should *replace* in this case.
+  assert_int_eq(102, dq->last->data.number);
+  assert_int_eq(3, deque_length(dq));
+  assert_not_null(dq->last);
+  assert_true(dq->last != dq->last->previous); // ensure we don't have self-referential linked list nodes
+
   fprintf(stdout, "\n");
   deque_inspect(dq);
-
-  return 0;
 }
 
-int test_deque_prepend() {
+void test_deque_prepend_replace() {
   deque *dq = deque_initialize(127, stdout, _note_indexer, _note_node_print_function);
 
   assert_int_eq(127, dq->max_length);
@@ -95,37 +97,44 @@ int test_deque_prepend() {
 
   NOTE_FIXTURES;
 
-  deque_prepend(dq, note2);
+  deque_prepend_replace(dq, note2);
   assert_int_eq(102, dq->first->data.number);
   assert_not_null(dq->first);
   assert_not_null(dq->first);
   assert_not_null(dq->last);
+
   assert_long_eq((long)dq->last, (long)dq->first);
   assert_null(dq->first->next);
   assert_null(dq->first->previous);
-  deque_prepend(dq, note1);
+  deque_prepend_replace(dq, note1);
+
   assert_int_eq(101, dq->first->data.number);
   assert_not_null(dq->first);
   assert_not_null(dq->last->previous);
   assert_int_eq(101, dq->last->previous->data.number);
 
-  deque_prepend(dq, note0);
+  deque_prepend_replace(dq, note0);
   assert_int_eq(100, dq->first->data.number);
   assert_int_eq(3, deque_length(dq));
+
+  deque_prepend_replace(dq, note0); // since we use a hashmap, append should *replace* in this case.
+  assert_int_eq(100, dq->first->data.number);
+  assert_int_eq(3, deque_length(dq));
+  assert_not_null(dq->first);
+  assert_true(dq->first != dq->first->next); // ensure we don't have self-referential linked list nodes
+
   fprintf(stdout, "\n");
   deque_inspect(dq);
-
-  return 0;
 }
 
-int test_deque_remove_first() {
+void test_deque_remove_first() {
   deque *dq = deque_initialize(127, stdout, _note_indexer, _note_node_print_function);
 
   NOTE_FIXTURES;
 
-  deque_append(dq, note0);
-  deque_append(dq, note1);
-  deque_append(dq, note2);
+  deque_append_replace(dq, note0);
+  deque_append_replace(dq, note1);
+  deque_append_replace(dq, note2);
 
   maybe_node_data removed = deque_remove_first(dq);
   assert_true(removed.exists);
@@ -146,18 +155,16 @@ int test_deque_remove_first() {
   assert_int_eq(102, removed.unwrap.number);
   assert_null(dq->first);
   assert_int_eq(0, deque_length(dq));
-
-  return 0;
 }
 
-int test_deque_remove_last() {
+void test_deque_remove_last() {
   deque *dq = deque_initialize(127, stdout, _note_indexer, _note_node_print_function);
 
   NOTE_FIXTURES;
 
-  deque_prepend(dq, note2);
-  deque_prepend(dq, note1);
-  deque_prepend(dq, note0);
+  deque_prepend_replace(dq, note2);
+  deque_prepend_replace(dq, note1);
+  deque_prepend_replace(dq, note0);
 
   maybe_node_data removed = deque_remove_last(dq);
   assert_true(removed.exists);
@@ -178,18 +185,16 @@ int test_deque_remove_last() {
   assert_int_eq(100, removed.unwrap.number);
   assert_null(dq->last);
   assert_int_eq(0, deque_length(dq));
-
-  return 0;
 }
 
-int test_deque_remove_by_key() {
+void test_deque_remove_by_key() {
   deque *dq = deque_initialize(127, stdout, _note_indexer, _note_node_print_function);
 
   NOTE_FIXTURES;
 
-  deque_append(dq, note0);
-  deque_append(dq, note1);
-  deque_append(dq, note2);
+  deque_append_replace(dq, note0);
+  deque_append_replace(dq, note1);
+  deque_append_replace(dq, note2);
 
   maybe_node_data removed = deque_remove_by_key(dq, 10); // non-existent thing should be null
   assert_false(removed.exists);
@@ -213,18 +218,16 @@ int test_deque_remove_by_key() {
   assert_true(removed.exists);
   assert_int_eq(102, removed.unwrap.number);
   assert_int_eq(0, deque_length(dq));
-
-  return 0;
 }
 
-int test_deque_find_by_key() {
+void test_deque_find_by_key() {
   deque *dq = deque_initialize(127, stdout, _note_indexer, _note_node_print_function);
 
   NOTE_FIXTURES;
 
-  deque_append(dq, note0);
-  deque_append(dq, note1);
-  deque_append(dq, note2);
+  deque_append_replace(dq, note0);
+  deque_append_replace(dq, note1);
+  deque_append_replace(dq, note2);
   assert_int_eq(3, deque_length(dq));
 
   note *found = deque_find_by_key(dq, 100);
@@ -240,25 +243,24 @@ int test_deque_find_by_key() {
   assert_null(found);
 
   deque_empty(dq);
-  deque_append(dq, note0);
-  deque_append(dq, note1);
-  deque_append(dq, note2);
+  deque_append_replace(dq, note0);
+  deque_append_replace(dq, note1);
+  deque_append_replace(dq, note2);
   assert_int_eq(3, deque_length(dq));
-
-  return 0;
 }
 
 int main() {
   setvbuf(stdout, NULL, _IONBF, 0); // disable buffering on stdout
 
   test_deque_initialize();
-  test_deque_append();
-  test_deque_prepend();
+  test_deque_append_replace();
+  test_deque_prepend_replace();
   test_deque_remove_first();
   test_deque_remove_last();
   test_deque_remove_by_key();
   test_deque_find_by_key();
 
   printf("\n");
-  return 0;
+
+  return TEST_FAILURE_COUNT;
 }

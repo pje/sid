@@ -45,8 +45,8 @@ typedef struct maybe_node_data maybe_node_data;
 
 deque *deque_initialize(unsigned int max_length, FILE *stream, node_index_function_t *node_indexer, node_print_function_t *node_printer);
 unsigned int deque_length(deque *dq);
-void deque_append(deque *dq, NODE_DATA node_data);
-void deque_prepend(deque *dq, NODE_DATA node_data);
+void deque_append_replace(deque *dq, NODE_DATA node_data);
+void deque_prepend_replace(deque *dq, NODE_DATA node_data);
 maybe_node_data deque_remove_first(deque *dq);
 maybe_node_data deque_remove_last(deque *dq);
 maybe_node_data deque_remove_by_key(deque *dq, unsigned int k);
@@ -143,10 +143,10 @@ void deque_free(deque *dq) {
   free(dq);
 }
 
-// O(1)
-void deque_append(deque *dq, NODE_DATA node_data) {
+void deque_append_replace(deque *dq, NODE_DATA node_data) {
   int key = dq->node_index_function(dq, node_data);
   node *new_node = NULL;
+  node *former_lasts_previous = dq->last ? dq->last->previous : NULL;
 
   while (new_node == NULL) {
     new_node = hash_table_set(
@@ -164,19 +164,29 @@ void deque_append(deque *dq, NODE_DATA node_data) {
   }
 
   node *last = dq->last;
-  dq->last = new_node;
+
   if (!last) {
+    dq->last = new_node;
     dq->first = new_node;
     return;
   }
-  last->next = new_node;
-  new_node->previous = last;
+
+  if (last->key == new_node->key) { // we replaced a node that had the same key.
+    new_node->next = NULL;
+    new_node->previous = former_lasts_previous;
+  } else {
+    last->next = new_node;
+    new_node->previous = last;
+  }
+
+  dq->last = new_node;
 }
 
 // // O(1)
-void deque_prepend(deque *dq, NODE_DATA node_data) {
+void deque_prepend_replace(deque *dq, NODE_DATA node_data) {
   int key = dq->node_index_function(dq, node_data);
   node *new_node = NULL;
+  node *former_firsts_next = dq->first ? dq->first->next : NULL;
 
   while (new_node == NULL) {
     new_node = hash_table_set(
@@ -194,13 +204,22 @@ void deque_prepend(deque *dq, NODE_DATA node_data) {
   }
 
   node *first = dq->first;
-  dq->first = new_node;
+
   if (!first) {
+    dq->first = new_node;
     dq->last = new_node;
     return;
   }
-  first->previous = new_node;
-  new_node->next = first;
+
+  if (first->key == new_node->key) { // we replaced a node that had the same key.
+    new_node->next = former_firsts_next;
+    new_node->previous = NULL;
+  } else {
+    first->previous = new_node;
+    new_node->next = first;
+  }
+
+  dq->first = new_node;
 }
 
 // O(1)
@@ -298,8 +317,9 @@ static void _deque_inspect_nodes(deque *dq, node *n, node_print_function_t *prin
   if (n == NULL) {
     return;
   }
-  if (iterations > dq->max_length > iterations) {
-    printf("!!!\n");
+  if (iterations > dq->max_length) {
+    fprintf(stream, "⚠️ INFINITE LOOP DETECTED in deque!\n");
+    return;
   }
   print_node(n, stream);
   if (n->next) {

@@ -775,7 +775,7 @@ void play_note_for_voice(byte note_number, unsigned char voice) {
   hertz = note_number_to_frequency(note_number) * pow(2, hertz / 12.0);
 
   if (!volume_modulation_mode_active) {
-    if (get_voice_gate(voice)) {
+    if (get_voice_gate(voice)) { // this voice is already playing another note, still in its ADS phase. So glide might be relevant. Otherwise we can just clobber the gate
       if (legato_mode) {
         glide_start_time_micros = now;
         glide_to = note_number;
@@ -798,8 +798,8 @@ void play_note_for_voice(byte note_number, unsigned char voice) {
       oscillator_notes[voice].on_time = now;
     }
   }
-
-  deque_append(notes, { .number=note_number, .on_time=now, .off_time=0, .voiced_by_oscillator=voice });
+  printf("play_note_for_voice, deque_append_replace(%d): size was %d, last key was: %d\n", note_number, deque_length(notes), notes->last->data.number);
+  deque_append_replace(notes, { .number=note_number, .on_time=now, .off_time=0, .voiced_by_oscillator=voice });
 
   oscillator_notes[voice].number = note_number;
   oscillator_notes[voice].off_time = 0;

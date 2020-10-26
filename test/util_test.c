@@ -1,7 +1,7 @@
 #include "test_helper.h"
 #include "../src/util.h"
 
-int test_sine_waveform() {
+void test_sine_waveform() {
   double result = sine_waveform(1.0, 0, 1.0, 0.0);
   assert_float_eq(0.0, result);
 
@@ -16,11 +16,9 @@ int test_sine_waveform() {
 
   result = sine_waveform(1.0, 1.0, 1.0, 0.0);
   assert_float_eq(0.0, result);
-
-  return 0;
 }
 
-int test_linear_envelope() {
+void test_linear_envelope() {
   double result = 0;
   // attack
   result = linear_envelope(10.0, 5.0, 0.5, 5.0, 3.0, -1.0);
@@ -37,16 +35,12 @@ int test_linear_envelope() {
   // release
   result = linear_envelope(10.0, 5.0, 0.5, 5.0, 20, 2.5);
   assert_float_eq(0.25, result);
-
-  return 0;
 }
 
-int test_freqs() {
+void test_freqs() {
   assert_float_eq(16.351598,   note_number_to_frequency(0));
   assert_float_eq(440.0,       note_number_to_frequency(57));
   assert_float_eq(3951.066410, note_number_to_frequency(95));
-
-  return 0;
 }
 
 int main() {
@@ -57,5 +51,5 @@ int main() {
   test_freqs();
 
   printf("\n");
-  return 0;
+  return TEST_FAILURE_COUNT;
 }
