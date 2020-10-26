@@ -1,10 +1,10 @@
 #include <Arduino.h>
 #include <MemoryFree.h>
-// #include <avr/io.h>
 #include <math.h>
 #include <usbmidi.h>
 #include "src/deque.h"
 #include "src/hash_table.h"
+#include "src/midi_constants.h"
 #include "src/note.h"
 #include "src/sid.h"
 #include "src/stdinout.h"
@@ -17,96 +17,6 @@ deque *notes = deque_initialize(deque_size, stdout, _note_indexer, _note_node_pr
 
 const int ARDUINO_SID_CHIP_SELECT_PIN = 13; // wired to SID's CS pin
 const int ARDUINO_SID_MASTER_CLOCK_PIN = 5; // wired to SID's Ø2 pin
-
-const byte MIDI_NOTE_ON        = 0B1001;
-const byte MIDI_NOTE_OFF       = 0B1000;
-const byte MIDI_PITCH_BEND     = 0B1110;
-const byte MIDI_CONTROL_CHANGE = 0B1011;
-const byte MIDI_PROGRAM_CHANGE = 0B1100;
-const byte MIDI_TIMING_CLOCK   = 0B11111000;
-
-const byte MIDI_CONTROL_CHANGE_TOGGLE_WAVEFORM_VOICE_ONE_TRIANGLE   = 12; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_TOGGLE_WAVEFORM_VOICE_ONE_RAMP       = 13; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_TOGGLE_WAVEFORM_VOICE_ONE_SQUARE     = 14; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_TOGGLE_WAVEFORM_VOICE_ONE_NOISE      = 15; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_ONE               = 16; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_ONE                   = 17; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_TEST_VOICE_ONE                   = 82; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_ONE                 = 18; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_ONE            = 38; // 7-bit value (12-bit total)
-const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_ONE        = 70; // 5-bit value (12-bit total)
-const byte MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_ONE                 = 39; // 4-bit value
-const byte MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_ONE                  = 40; // 4-bit value
-const byte MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_ONE                = 41; // 4-bit value
-const byte MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_ONE                = 42; // 4-bit value
-
-const byte MIDI_CONTROL_CHANGE_TOGGLE_WAVEFORM_VOICE_TWO_TRIANGLE   = 20; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_TOGGLE_WAVEFORM_VOICE_TWO_RAMP       = 21; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_TOGGLE_WAVEFORM_VOICE_TWO_SQUARE     = 22; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_TOGGLE_WAVEFORM_VOICE_TWO_NOISE      = 23; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_TWO               = 24; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_TWO                   = 25; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_TEST_VOICE_TWO                   = 90; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_TWO                 = 26; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_TWO            = 46; // 7-bit value (12-bit total)
-const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_TWO        = 78; // 5-bit value (12-bit total)
-const byte MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_TWO                 = 47; // 4-bit value
-const byte MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_TWO                  = 48; // 4-bit value
-const byte MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_TWO                = 49; // 4-bit value
-const byte MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_TWO                = 50; // 4-bit value
-
-const byte MIDI_CONTROL_CHANGE_TOGGLE_WAVEFORM_VOICE_THREE_TRIANGLE = 28; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_TOGGLE_WAVEFORM_VOICE_THREE_RAMP     = 29; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_TOGGLE_WAVEFORM_VOICE_THREE_SQUARE   = 30; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_TOGGLE_WAVEFORM_VOICE_THREE_NOISE    = 31; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_RING_MOD_VOICE_THREE             = 33; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_SYNC_VOICE_THREE                 = 34; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_TEST_VOICE_THREE                 = 98; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_THREE               = 35; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_VOICE_THREE          = 54; // 7-bit value (12-bit total)
-const byte MIDI_CONTROL_CHANGE_SET_PULSE_WIDTH_LSB_VOICE_THREE      = 86; // 5-bit value (12-bit total)
-const byte MIDI_CONTROL_CHANGE_SET_ATTACK_VOICE_THREE               = 55; // 4-bit value
-const byte MIDI_CONTROL_CHANGE_SET_DECAY_VOICE_THREE                = 56; // 4-bit value
-const byte MIDI_CONTROL_CHANGE_SET_SUSTAIN_VOICE_THREE              = 57; // 4-bit value
-const byte MIDI_CONTROL_CHANGE_SET_RELEASE_VOICE_THREE              = 58; // 4-bit value
-
-const byte MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY                 = 36; // 7-bit value (11-bit total)
-const byte MIDI_CONTROL_CHANGE_SET_FILTER_FREQUENCY_LSB             = 68; // 4-bit value (11-bit total)
-const byte MIDI_CONTROL_CHANGE_SET_FILTER_RESONANCE                 = 37; // 4-bit value
-const byte MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_LP                = 60; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_BP                = 61; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_HP                = 62; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_FILTER_VOICE_THREE_OFF           = 63; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_ONE                 = 64; // 7-bit value
-const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_TWO                 = 72; // 7-bit value
-const byte MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_THREE               = 80; // 7-bit value
-const byte MIDI_CONTROL_CHANGE_SET_VOLUME                           = 43; // 4-bit value
-const byte MIDI_CONTROL_CHANGE_TOGGLE_SID_TRANSFER_DEBUGGING        = 119; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_SET_GLIDE_TIME_LSB                   = 124; // 7-bit value (14-bit total)
-const byte MIDI_CONTROL_CHANGE_SET_GLIDE_TIME                       = 125; // 7-bit value (14-bit total)
-const byte MIDI_CONTROL_CHANGE_TOGGLE_ALL_TEST_BITS                 = 126; // 1-bit value
-
-const byte MIDI_CONTROL_CHANGE_TOGGLE_VOLUME_MODULATION_MODE        = 81; // 1-bit value
-const byte MIDI_CONTROL_CHANGE_TOGGLE_PULSE_WIDTH_MODULATION_MODE   = 83; // 1-bit value
-
-const byte MIDI_CONTROL_CHANGE_RPN_MSB                              = 101;
-const byte MIDI_CONTROL_CHANGE_RPN_LSB                              = 100;
-const byte MIDI_CONTROL_CHANGE_DATA_ENTRY                           = 6;
-const byte MIDI_CONTROL_CHANGE_DATA_ENTRY_FINE                      = 38;
-const byte MIDI_RPN_PITCH_BEND_SENSITIVITY                          = 0;
-const byte MIDI_RPN_MASTER_FINE_TUNING                              = 1;
-const byte MIDI_RPN_MASTER_COARSE_TUNING                            = 2;
-const word MIDI_RPN_NULL                                            = 16383;
-
-// below are CC numbers that are defined and we don't implement, but repurposing
-// them in the future might have weird consequences, so we shouldn't
-const byte MIDI_CONTROL_CHANGE_ALL_NOTES_OFF                        = 123;
-
-const byte MIDI_CHANNEL = 0; // "channel 1" (zero-indexed)
-const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_PARAPHONIC           = 0;
-const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC           = 1;
-const byte MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC_LEGATO    = 2;
-const byte MIDI_PROGRAM_CHANGE_HARDWARE_RESET                       = 127;
 
 const byte MAX_POLYPHONY = 3;
 const byte DEFAULT_PITCH_BEND_SEMITONES = 5;
@@ -172,19 +82,6 @@ unsigned long time_in_micros = 0;
 unsigned long time_in_seconds = 0;
 
 void clean_slate();
-
-static void __deque_inspect_nodes(node *n) {
-  if (n == NULL) {
-    return;
-  }
-  _note_node_print_function(n, stdout);
-  if (n->next) {
-    Serial.print("-");
-    __deque_inspect_nodes(n->next);
-  } else {
-    return;
-  }
-}
 
 void clock_high() {
   uint8_t oldSREG = SREG;
@@ -601,15 +498,13 @@ void handle_state_dump_request(bool human) {
     #if DEBUG_LOGGING
       printf("V#  WAVE     FREQ    A      D      S    R      PW   TEST RING SYNC GATE FILT\n");
       //           "V1  Triangle 1234.56 12.345 12.345 12.345 12.345 2048 1    1    1    1    1   \n"
-      for (int i = 0; i < 3; i++) {
-        Serial.print("V");
-        Serial.print(i);
-        Serial.print("  ");
+      for (unsigned int i = 0; i < 3; i++) {
+        printf("V%u  ", i);
 
         byte wave = get_voice_waveform(i) << 4;
 
         if (wave == 0) {
-          Serial.print("Disabled");
+          printf("Disabled");
         } else {
           printf(((wave & SID_TRIANGLE) != 0) ? "Tr" : "  ");
           printf(((wave & SID_RAMP)     != 0) ? "Rm" : "  ");
@@ -621,95 +516,66 @@ void handle_state_dump_request(bool human) {
 
         double f = get_voice_frequency(i);
 
-        Serial.print(" ");
         float_as_padded_string(float_string, f, 4, 2, '0');
-        Serial.print(float_string);
+        printf(" %s", float_string);
 
         double a = get_attack_seconds(i);
         double d = get_decay_seconds(i);
         double s = get_sustain_percent(i);
         double r = get_release_seconds(i);
 
-        Serial.print(" ");
         float_as_padded_string(float_string, a, 2, 3, '0');
-        Serial.print(float_string);
+        printf(" %s", float_string);
 
-        Serial.print(" ");
         float_as_padded_string(float_string, d, 2, 3, '0');
-        Serial.print(float_string);
+        printf(" %s", float_string);
 
-        Serial.print(" ");
         sprintf(float_string, "%3d", (int)(s * 100));
-        Serial.print(float_string);
-        Serial.print("%");
+        printf(" %s%%", float_string);
 
-        Serial.print(" ");
         float_as_padded_string(float_string, r, 2, 3, '0');
-        Serial.print(float_string);
+        printf(" %s", float_string);
 
-        word pw = get_voice_pulse_width(i);
-
-        Serial.print(" ");
-        float_as_padded_string(float_string, pw, 4, 0, '0');
-        Serial.print(float_string);
-
-        Serial.print(" ");
-        Serial.print(get_voice_test_bit(i));
-        Serial.print("    ");
-        Serial.print(get_voice_ring_mod(i));
-        Serial.print("    ");
-        Serial.print(get_voice_sync(i));
-        Serial.print("    ");
-        Serial.print(get_voice_gate(i));
-        Serial.print("    ");
-        Serial.print(get_filter_enabled_for_voice(i));
-        Serial.print("\n");
+        printf(
+          " %4u  %d    %d    %d    %d    %d\n",
+          get_voice_pulse_width(i),
+          get_voice_test_bit(i),
+          get_voice_ring_mod(i),
+          get_voice_sync(i),
+          get_voice_gate(i),
+          get_filter_enabled_for_voice(i)
+        );
       }
 
-      Serial.print("Filter frequency: ");
-      Serial.print(get_filter_frequency());
-      Serial.print(" resonance: ");
-      Serial.print(get_filter_resonance());
-      Serial.print(" mode: ");
+      printf("Filter frequency: %u resonance: %u mode: ", get_filter_frequency(), get_filter_resonance());
 
       byte mask = sid_state_bytes[SID_REGISTER_ADDRESS_FILTER_MODE_VOLUME] & 0B01110000;
 
-      Serial.print(mask & 0B01000000 ? "HP" : "--");
-      Serial.print(mask & 0B00100000 ? "BP" : "--");
-      Serial.print(mask & 0B00010000 ? "LP" : "--");
-      Serial.print("\n");
+      printf("%s", mask & SID_FILTER_HP ? "HP" : "--");
+      printf("%s", mask & SID_FILTER_BP ? "BP" : "--");
+      printf("%s", mask & SID_FILTER_LP ? "LP" : "--");
+      printf("\n");
 
-      Serial.print("Global Mode: ");
+      printf("Global Mode: %s", polyphony == 1 ? "Mono" : "Para");
 
-      if (polyphony == 1 && legato_mode) {
-        Serial.print("Mono Legato");
-      } else if (polyphony == 1) {
-        Serial.print("Mono");
-      } else {
-        Serial.print("Poly");
-      }
       if (volume_modulation_mode_active) {
-        Serial.print(" <volume modulation mode>");
+        printf(" <volume modulation mode>\n");
       } else if (pulse_width_modulation_mode_active) {
-        Serial.print(" <pulse width modulation mode>");
+        printf(" <pulse width modulation mode>\n");
       }
-      Serial.print("\n");
 
-      Serial.print("Volume: ");
-      Serial.print(get_volume());
-      Serial.print("\n");
+      printf("Volume: %u\n", get_volume());
     #endif
 
     inspect_oscillator_notes();
     deque_inspect(notes);
-    log_load_stats();
   } else {
     for (int i = 0; i < 25; i++) {
       print_byte_in_binary(sid_state_bytes[i]);
     }
-
-    log_load_stats();
   }
+
+  log_load_stats();
 }
 
 void handle_midi_input(Stream *midi_port) {
@@ -732,15 +598,7 @@ void handle_midi_input(Stream *midi_port) {
         controller_value = midi_port->read();
 
         #if DEBUG_LOGGING
-          Serial.print("\n");
-          Serial.print("[");
-          Serial.print(time_in_micros);
-          Serial.print("] ");
-          Serial.print("Received MIDI CC ");
-          Serial.print(controller_number);
-          Serial.print(" ");
-          Serial.print(controller_value);
-          Serial.print("\n");
+          printf("[%zu] Received MIDI CC %u %u\n", time_in_micros, controller_number, controller_value);
         #endif
 
         switch (controller_number) {
@@ -984,13 +842,7 @@ void handle_midi_input(Stream *midi_port) {
         data_byte_one = midi_port->read();
 
         #if DEBUG_LOGGING
-          Serial.print("\n");
-          Serial.print("[");
-          Serial.print(time_in_micros);
-          Serial.print("] ");
-          Serial.print("Received MIDI PC ");
-          Serial.print(data_byte_one);
-          Serial.print("\n");
+          printf("[%zu] Received MIDI PC %u\n", time_in_micros, data_byte_one);
         #endif
 
         handle_program_change(data_byte_one);
@@ -1006,13 +858,7 @@ void handle_midi_input(Stream *midi_port) {
         pitchbend |= data_byte_one;
 
         #if DEBUG_LOGGING
-          Serial.print("\n");
-          Serial.print("[");
-          Serial.print(time_in_micros);
-          Serial.print("] ");
-          Serial.print("Received MIDI PB ");
-          Serial.print(pitchbend);
-          Serial.print("\n");
+          printf("[%zu] Received MIDI PB %u\n", time_in_micros, pitchbend);
         #endif
 
         handle_pitchbend_change(pitchbend);
@@ -1024,13 +870,7 @@ void handle_midi_input(Stream *midi_port) {
         data_byte_two = midi_port->read(); // "velocity", which we don't use
 
         #if DEBUG_LOGGING
-          Serial.print("\n");
-          Serial.print("[");
-          Serial.print(time_in_micros);
-          Serial.print("] ");
-          Serial.print("Received MIDI Note On ");
-          Serial.print(data_byte_one);
-          Serial.print("\n");
+          printf("[%zu] Received MIDI Note On %u\n", time_in_micros, data_byte_one);
         #endif
 
         if (data_byte_one < 96) { // SID can't handle freqs > B7
@@ -1044,13 +884,7 @@ void handle_midi_input(Stream *midi_port) {
         data_byte_two = midi_port->read(); // "velocity", which we don't use
 
         #if DEBUG_LOGGING
-          Serial.print("\n");
-          Serial.print("[");
-          Serial.print(time_in_micros);
-          Serial.print("] ");
-          Serial.print("Received MIDI Note Off ");
-          Serial.print(data_byte_one);
-          Serial.print("\n");
+          printf("[%zu] Received MIDI Note Off %u\n", time_in_micros, data_byte_one);
         #endif
 
         if (data_byte_one < 96) { // SID can't handle freqs > B7
@@ -1076,14 +910,9 @@ void clean_slate() {
     printf("bytes allocated for deque/hash: %u + %u + %u = %u\n", dq_bytes, ht_bytes, db_bytes, dq_bytes + ht_bytes + db_bytes);
   #endif
 
+  initialize_glide_state();
   polyphony = 3;
   legato_mode = false;
-  glide_time_millis = DEFAULT_GLIDE_TIME_MILLIS;
-  glide_time_raw_word = 0;
-  glide_time_raw_lsb = 0;
-  glide_start_time_micros = 0;
-  glide_to = 0;
-  glide_from = 0;
   midi_pitch_bend_max_semitones = 5;
   current_pitchbend_amount = 0.0;
   detune_max_semitones = 5;
@@ -1148,10 +977,7 @@ void loop () {
       oscillator_notes[i].off_time = 0;
 
       #if DEBUG_LOGGING
-        Serial.print("leak detector got one: ");
-        byte _n = oscillator_notes[i].number;
-        Serial.print(_n);
-        Serial.print("\n");
+        printf("leak detector deleted note: %u\n", oscillator_notes[i].number);
       #endif
 
       deque_remove_by_key(notes, oscillator_notes[i].number);
