@@ -5,25 +5,31 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include "node.h"
+#include "list_node.h"
 #include "hash_table.h"
 
-// A deque (double-ended queue) implemented using a fixed-size doubly-linked list
-// backed by a simple fixed-size hash table using open addressing
+// A double-ended queue that stores its elements in a hash map. All fixed-size.
 //
-// Implements O(1) average-case prepend, append, remove_first, remove_last, find(i)*, remove(i)*
+// The deque is implemented using a doubly-linked list. This buys us:
+// - O(1) time to access the oldest or newest element
+// - O(1) time to add new elements to the front or back
 //
-// [*]: if `node_index_function` isn't implemented, `find(i)` and remove(i) are O(n).
+// Using a hash buys us:
+// - O(1) time to find and delete an element by its key (with the usual caveats
+//   on hash map lookup speed)
+//
+// Having elements ordered by insertion, it's like a queue
+// Having elements uniquely indexed by `key`, it's like a hash
+// Has aspects of a sorted set?
 
 typedef struct deque deque;
 
-// function that takes a NODE_DATA and returns a unique array index for that
-// node. The index will be used as for this node's slot in the deque's
-// underlying array. (must be idempotent!)
+// A function that returns a unique key for a given list element.
+// This is how we'll insert the element into the hash map, so it's gotta be unique and idempotent.
 typedef unsigned int (node_index_function_t)(deque *dq, NODE_DATA n);
-// function that takes a node (for printing) and returns void
+// function that prints a list element
 typedef void (node_print_function_t)(node *n, FILE *stream);
-// function that takes a deque (for printing) and returns void
+// function that prints the whole list
 typedef void (deque_print_function)(deque *dq);
 
 struct deque {
@@ -143,6 +149,11 @@ void deque_free(deque *dq) {
   free(dq);
 }
 
+// Adds the element to the front of the queue. If the queue contains an element
+// with the same `key`, the older element will be replaced. If the queue is at
+// capacity, the oldest element will be replaced.
+//
+// O(1)
 void deque_append_replace(deque *dq, NODE_DATA node_data) {
   int key = dq->node_index_function(dq, node_data);
   node *new_node = NULL;
@@ -155,9 +166,9 @@ void deque_append_replace(deque *dq, NODE_DATA node_data) {
       (node){ .data=node_data, .previous=dq->last, .next=NULL, .key=key }
     );
 
-    // the only way this returns NULL is if it fails to set, which means the
-    // hash is out of space, so delete the oldest element first and try again
-    // NB: if this loops more than once, something went extremely wrong
+    // `hash_table_set` returns NULL to signal it's out of space and couldn't
+    // add the element without evicting another one. So it's up to us to choose.
+    // Here we choose to evict the *oldest* element from the list and then retry
     if (!new_node) {
       deque_remove_first(dq);
     }
@@ -173,7 +184,7 @@ void deque_append_replace(deque *dq, NODE_DATA node_data) {
 
   if (last->key == new_node->key) { // we replaced a node that had the same key.
     new_node->next = NULL;
-    new_node->previous = former_lasts_previous;
+    new_node->previous = former_lasts_previous; // to avoid having self-referential links in the list
   } else {
     last->next = new_node;
     new_node->previous = last;
@@ -182,7 +193,11 @@ void deque_append_replace(deque *dq, NODE_DATA node_data) {
   dq->last = new_node;
 }
 
-// // O(1)
+// Adds the element to the back of the queue. If the queue contains an element
+// with the same `key`, the older element will be replaced. If the queue is at
+// capacity, the newest element will be replaced.
+//
+// O(1)
 void deque_prepend_replace(deque *dq, NODE_DATA node_data) {
   int key = dq->node_index_function(dq, node_data);
   node *new_node = NULL;
@@ -195,8 +210,9 @@ void deque_prepend_replace(deque *dq, NODE_DATA node_data) {
       (node){ .data=node_data, .previous=NULL, .next=dq->first, .key=key }
     );
 
-    // the only way this returns NULL is if it fails to set, which means the
-    // hash is out of space, so delete the newest element first and try again
+    // `hash_table_set` returns NULL to signal it's out of space and couldn't
+    // add the element without evicting another one. So it's up to us to choose.
+    // Here we choose to evict the *newest* element from the list and then retry
     // NB: if this loops more than once, something went extremely wrong
     if (!new_node) {
       deque_remove_last(dq);
@@ -212,8 +228,8 @@ void deque_prepend_replace(deque *dq, NODE_DATA node_data) {
   }
 
   if (first->key == new_node->key) { // we replaced a node that had the same key.
-    new_node->next = former_firsts_next;
     new_node->previous = NULL;
+    new_node->next = former_firsts_next; // to avoid having self-referential links in the list
   } else {
     first->previous = new_node;
     new_node->next = first;
@@ -270,25 +286,25 @@ maybe_node_data deque_remove_last(deque *dq) {
 }
 
 // O(1)
-maybe_node_data deque_remove_by_key(deque *dq, unsigned int k) {
-  return _deque_remove_helper(dq, k);
+maybe_node_data deque_remove_by_key(deque *dq, unsigned int key) {
+  return _deque_remove_helper(dq, key);
 }
 
 // O(1)
-NODE_DATA *deque_find_by_key(deque *dq, unsigned int k) {
-  HASH_TABLE_VAL *result = hash_table_get(dq->ht, k);
+NODE_DATA *deque_find_by_key(deque *dq, unsigned int key) {
+  HASH_TABLE_VAL *result = hash_table_get(dq->ht, key);
   return(result ? &result->data : NULL);
 }
 
 // O(1)
-node *deque_find_node_by_key(deque *dq, unsigned int k) {
-  HASH_TABLE_VAL *result = hash_table_get(dq->ht, k);
+node *deque_find_node_by_key(deque *dq, unsigned int key) {
+  HASH_TABLE_VAL *result = hash_table_get(dq->ht, key);
   return(result ? result : NULL);
 }
 
 // private below
-static maybe_node_data _deque_remove_helper(deque *dq, unsigned int k) {
-  maybe_hash_table_val removed = hash_table_remove(dq->ht, k);
+static maybe_node_data _deque_remove_helper(deque *dq, unsigned int key) {
+  maybe_hash_table_val removed = hash_table_remove(dq->ht, key);
   if (!removed.exists) {
     return (maybe_node_data){ .exists=false };
   }

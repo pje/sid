@@ -4,14 +4,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include "list_node.h"
 
 // A simple fixed-size hash table using open addressing.
 // intended for storing small-ish data, because all data is stored
 // directly in the hash's array. no pointers.
 
 // begin "generic" section
-#include "node.h"
-
 #ifndef HASH_TABLE_KEY
 #define HASH_TABLE_KEY unsigned char
 #endif
@@ -19,7 +18,6 @@
 #ifndef HASH_TABLE_VAL
 #define HASH_TABLE_VAL node
 #endif
-
 // end "generic" section
 
 struct hash_table_element {
