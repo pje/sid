@@ -34,9 +34,9 @@ const unsigned int PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY = 65535;
 const float UPDATE_EVERY_MICROS = (100.0 / 4.41);
 
 byte polyphony = 3;
-bool legato_mode = false;
-float glide_time_millis = DEFAULT_GLIDE_TIME_MILLIS;
 word glide_time_raw_word;
+float glide_time_millis = DEFAULT_GLIDE_TIME_MILLIS;
+bool legato_mode = (polyphony == 1) && glide_time_millis > 0;
 byte glide_time_raw_lsb;
 unsigned long glide_start_time_micros = 0;
 byte glide_to = 0;
@@ -449,8 +449,8 @@ void handle_program_change(byte program_number) {
     break;
   case MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_MONOPHONIC_UNISON:
     polyphony = 1;
-    legato_mode = false;
     initialize_glide_state();
+    legato_mode = (polyphony == 1) && (glide_time_millis > 0.01);
     break;
   case MIDI_PROGRAM_CHANGE_HARDWARE_RESET:
     clean_slate();
@@ -541,7 +541,12 @@ void handle_state_dump_request(bool human) {
       printf("\n");
 
       printf("Global Mode: %s\n", polyphony == 1 ? "Mono Unison" : "Paraphonic");
-
+      if (polyphony == 1) {
+        printf("Glide enabled: %s", legato_mode ? "true" : "false");
+        char str[12];
+        float_as_padded_string(str, glide_time_millis, 2, 3, '0');
+        printf("\nGlide time: %s\n", str);
+      }
       if (volume_modulation_mode_active) {
         printf(" <volume modulation mode>\n");
       } else if (pulse_width_modulation_mode_active) {
@@ -806,9 +811,10 @@ void handle_midi_input(Stream *midi_port) {
         case MIDI_CONTROL_CHANGE_SET_GLIDE_TIME: // controller_value is 7-bit
           glide_time_raw_word = (((word)controller_value) << 7) + glide_time_raw_lsb;
           glide_time_millis = ((glide_time_raw_word / 16383.0) * (GLIDE_TIME_MAX_MILLIS - GLIDE_TIME_MIN_MILLIS)) + GLIDE_TIME_MIN_MILLIS;
-          if (glide_time_millis < GLIDE_TIME_MIN_MILLIS) {
+          if (glide_time_millis <= GLIDE_TIME_MIN_MILLIS) {
             glide_time_millis = 0;
           }
+          legato_mode = (polyphony == 1) && (glide_time_millis > 0.01);
           break;
 
         case MIDI_CONTROL_CHANGE_TOGGLE_ALL_TEST_BITS:
@@ -899,7 +905,8 @@ void clean_slate() {
 
   initialize_glide_state();
   polyphony = 3;
-  legato_mode = false;
+  glide_time_millis = DEFAULT_GLIDE_TIME_MILLIS;
+  legato_mode = (polyphony == 1) && (glide_time_millis > 0.01);
   midi_pitch_bend_max_semitones = 5;
   current_pitchbend_amount = 0.0;
   detune_max_semitones = 5;
