@@ -1,14 +1,26 @@
 # SID
 
-Arduino/AVR C code for controlling the MOS6581 SID sound chip over MIDI
+Arduino/AVR C code for using the [MOS6581 SID sound chip](https://en.wikipedia.org/wiki/MOS_Technology_6581) as a MIDI synthesizer.
+
+Also:
+
+- [A Max4Live object](data/SID.amxd) to control the SID through Ableton Live
+- [A fritzing sketch](data/SID_shield.fzz) that (mostly correctly?) captures the wiring on the hand-soldered shield prototype I use
 
 ### Status
 
-Works on My Computer™
+Works on my Macbook, Arduino Micro™, and shield.
+
+### Build
+
+```bash
+make deps      # install dependencies
+make test      # run some unit tests
+make upload    # compile and upload to the arduino
+```
 
 #### Resources
 
-- [The original MOS specsheet for the 6581](http://archive.6502.org/datasheets/mos_6581_sid.pdf). Wonderful example of technical writing, but wrong in some specifics :(
-- The original specsheet, [converted to text](http://www.sidmusic.org/sid/sidtech2.html)
+- The original specsheet, [converted to text](http://www.sidmusic.org/sid/sidtech2.html). Good example of technical writing, but ~~fuzzy~~ wrong in some specifics
 - [The Insidious manual](https://impactsoundworks.com/docs/inSIDious%20Manual.pdf), which incidentally describes a lot of subtle stuff about the SID
 - [Sparkfun's "Introduction To MIDI Hardware & Electronic Implementation"](https://learn.sparkfun.com/tutorials/midi-tutorial/hardware--electronic-implementation)
