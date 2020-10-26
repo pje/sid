@@ -2,6 +2,13 @@
 #include <avr/io.h>
 #include <math.h>
 #include <usbmidi.h>
+#include "src/deque.h"
+#include "src/hash_table.h"
+#include "src/note.h"
+#include "src/stdinout.h"
+#include "src/util.h"
+
+#define DEBUG_LOGGING true
 
 #ifdef __arm__
 // should use uinstd.h to define sbrk but Due causes a conflict
@@ -20,19 +27,12 @@ int freeMemory() {
   return __brkval ? &top - __brkval : &top - __malloc_heap_start;
 #endif  // __arm__
 }
-#include "src/hash_table.h"
-#include "src/stdinout.h"
-#include "src/note.h"
-#include "src/util.h"
-#include "src/deque.h"
-
-#define DEBUG_LOGGING true
 
 const unsigned int deque_size = 32; // the number of notes that can be held simultaneously
 deque *notes = deque_initialize(deque_size, stdout, _note_indexer, _note_node_print_function);
 
-const int ARDUINO_SID_CHIP_SELECT_PIN = 13; // D13
-const int ARDUINO_SID_MASTER_CLOCK_PIN = 5; // D5
+const int ARDUINO_SID_CHIP_SELECT_PIN = 13; // wired to SID's CS pin
+const int ARDUINO_SID_MASTER_CLOCK_PIN = 5; // wired to SID's Ø2 pin
 
 const float CLOCK_SIGNAL_FACTOR = 0.0596;
 
@@ -170,6 +170,7 @@ const byte DEFAULT_PITCH_BEND_SEMITONES = 5;
 const double DEFAULT_GLIDE_TIME_MILLIS = 100.0;
 const unsigned int GLIDE_TIME_MIN_MILLIS = 1;
 const unsigned int GLIDE_TIME_MAX_MILLIS = 10000;
+const word MAX_PULSE_WIDTH_VALUE = 4095;
 
 byte polyphony = 3;
 bool legato_mode = false;
@@ -430,11 +431,12 @@ void sid_transfer(byte address, byte data) {
 
   clock_high();
   clock_low();
-  cs_low();
-  clock_high();
 
   PORTF = data_for_port_f;
   PORTB = data;
+
+  cs_low();
+  clock_high();
 
   clock_low();
   cs_high();
@@ -595,13 +597,14 @@ void sid_set_voice_frequency(int voice, double hertz) {
 
   // optimization: if the voice's frequency hasn't changed, don't send it
   word prev = get_voice_frequency_register_value(voice);
-  if (loFrequency != lowByte(prev)) {
-    byte loAddress = (voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_LO;
-    sid_transfer(loAddress, loFrequency);
-  }
   if (hiFrequency != highByte(prev)) {
     byte hiAddress = (voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_HI;
     sid_transfer(hiAddress, hiFrequency);
+  }
+
+  if (loFrequency != lowByte(prev)) {
+    byte loAddress = (voice * 7) + SID_REGISTER_OFFSET_VOICE_FREQUENCY_LO;
+    sid_transfer(loAddress, loFrequency);
   }
 }
 
@@ -620,7 +623,6 @@ void sid_set_gate(int voice, bool state) {
 // to be our 1MHz oscillator by configuring Timer 3 of the ATmega32U4.
 // http://medesign.seas.upenn.edu/index.php/Guides/MaEvArM-timer3
 void start_clock() {
-  pinMode(ARDUINO_SID_MASTER_CLOCK_PIN, OUTPUT);
   TCCR3A = 0;
   TCCR3B = 0;
   TCNT3 = 0;
@@ -709,6 +711,10 @@ void handle_voice_filter_change(byte voice, bool on) {
     } else {
       data = sid_state_bytes[address] & ~voice_filter_mask;
     }
+
+    printf("handle_voice_filter_change: ");
+    print_byte_in_binary(data);
+    printf("\n");
 
     sid_transfer(address, data);
   } else {
@@ -805,7 +811,7 @@ void play_note_for_voice(byte note_number, unsigned char voice) {
 
 void log_load_stats() {
   printf(
-    "{free_mem: %d, h(%u/%u){load: %d%%, coll: %d%%}",
+    "{free_mem: %d, h(%u/%u){load: %d%%, coll: %d%%}\n",
     freeMemory(),
     notes->ht->size,
     notes->ht->max_size,
@@ -817,6 +823,15 @@ void log_load_stats() {
 
 void inspect_oscillator_notes() {
   printf("{%d, %d, %d}\n", oscillator_notes[0].number, oscillator_notes[1].number, oscillator_notes[2].number);
+}
+
+void inspect_voice_detunes() {
+  printf(
+    "{%d%%, %d%%, %d%%}\n",
+    (signed int)(voice_detune_percents[0] * 100),
+    (signed int)(voice_detune_percents[1] * 100),
+    (signed int)(voice_detune_percents[2] * 100)
+  );
 }
 
 void handle_note_on(byte note_number) {
@@ -996,7 +1011,7 @@ void handle_state_dump_request(bool human) {
 
   if (human) {
     #if DEBUG_LOGGING
-      Serial.print("V#  WAVE     FREQ    A      D      S    R      PW   TEST RING SYNC GATE FILT\n");
+      printf("V#  WAVE     FREQ    A      D      S    R      PW   TEST RING SYNC GATE FILT\n");
       //           "V1  Triangle 1234.56 12.345 12.345 12.345 12.345 2048 1    1    1    1    1   \n"
       for (int i = 0; i < 3; i++) {
         Serial.print("V");
@@ -1046,6 +1061,12 @@ void handle_state_dump_request(bool human) {
         float_as_padded_string(float_string, r, 2, 3, '0');
         Serial.print(float_string);
 
+        word pw = get_voice_pulse_width(i);
+
+        Serial.print(" ");
+        float_as_padded_string(float_string, pw, 0, 4, '0');
+        Serial.print(float_string);
+
         Serial.print(" ");
         Serial.print(get_voice_test_bit(i));
         Serial.print("    ");
@@ -1093,33 +1114,15 @@ void handle_state_dump_request(bool human) {
       Serial.print("\n");
     #endif
 
-    Serial.print("{");
-    Serial.print(freeMemory());
-    Serial.print("} ");
-
-    Serial.print("oscillator_notes:\n");
-    for (int i = 0; i < 3; i++) {
-      Serial.print("{ .number=");
-      Serial.print(oscillator_notes[i].number);
-      Serial.print(", .on_time=");
-      Serial.print(oscillator_notes[i].on_time);
-      Serial.print(", .off_time=");
-      Serial.print(oscillator_notes[i].off_time);
-      Serial.print("}\n");
-    }
-
+    inspect_oscillator_notes();
     deque_inspect(notes);
+    log_load_stats();
   } else {
     for (int i = 0; i < 25; i++) {
-      static char str[9];
-      str[0] = '\0';
-
-      for (int j = 128; j > 0; j >>= 1) {
-        strcat(str, ((sid_state_bytes[i] & j) == j) ? "1" : "0");
-      }
-
-      Serial.print(str);
+      print_byte_in_binary(sid_state_bytes[i]);
     }
+
+    log_load_stats();
   }
 }
 
@@ -1333,7 +1336,8 @@ void handle_midi_input(Stream *midi_port) {
           break;
 
         case MIDI_CONTROL_CHANGE_SET_FILTER_RESONANCE:
-          sid_set_filter_resonance(constrain(controller_value, 0, 15));
+          controller_value = constrain(controller_value, 0, 15);
+          sid_set_filter_resonance(controller_value);
           break;
 
         case MIDI_CONTROL_CHANGE_SET_VOLUME:
@@ -1366,10 +1370,6 @@ void handle_midi_input(Stream *midi_port) {
             disable_pulse_width_modulation_mode();
           }
           break;
-
-        // case MIDI_CONTROL_CHANGE_TOGGLE_SID_TRANSFER_DEBUGGING:
-        //   DEBUG_LOGGING = (controller_value == 127);
-        //   break;
 
         case MIDI_CONTROL_CHANGE_SET_GLIDE_TIME_LSB:
           glide_time_raw_lsb = controller_value;
@@ -1538,18 +1538,19 @@ void clean_slate() {
 }
 
 void setup() {
-  DDRF = 0B01110011; // initialize 5 PORTF pins as output (connected to A0-A4)
+  setup_stdin_stdout();
+  notes->stream = stdout;
+
+  DDRF |= 0B01110011; // initialize 5 PORTF pins as output (connected to A0-A4)
   DDRB = 0B11111111; // initialize 8 PORTB pins as output (connected to D0-D7)
   // technically SID allows us to read from its last 4 registers, but we don't
   // need to, so we just always keep SID's R/W pin low (signifying "write"),
   // which seems to work ok
 
-  start_clock();
-
+  pinMode(ARDUINO_SID_MASTER_CLOCK_PIN, OUTPUT);
   pinMode(ARDUINO_SID_CHIP_SELECT_PIN, OUTPUT);
-  digitalWrite(ARDUINO_SID_CHIP_SELECT_PIN, HIGH);
-
-  Serial.begin(31250);
+  start_clock();
+  cs_high();
 
   clean_slate();
 }
