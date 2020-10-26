@@ -712,10 +712,6 @@ void handle_voice_filter_change(byte voice, bool on) {
       data = sid_state_bytes[address] & ~voice_filter_mask;
     }
 
-    printf("handle_voice_filter_change: ");
-    print_byte_in_binary(data);
-    printf("\n");
-
     sid_transfer(address, data);
   } else {
     sid_set_filter(voice, on);
