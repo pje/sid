@@ -8,6 +8,10 @@
 typedef unsigned char byte;
 typedef unsigned int word;
 
+#ifndef constrain
+#define constrain(amt,low,high) ((amt)<(low)?(low):((amt)>(high)?(high):(amt)))
+#endif /* constrain */
+
 byte lowNibble(byte b) { return(b & 0B00001111); }
 byte highNibble(byte b) { return((b & 0B11110000) >> 4); }
 
@@ -20,6 +24,26 @@ void print_byte_in_binary(byte b) {
   }
 
   printf("%s", str);
+}
+
+// need this because Arduino's default `sprintf` is broken with float input :(
+void float_as_padded_string(char *str, double f, signed char mantissa_chars, signed char decimal_chars, char padding) {
+  mantissa_chars = constrain(mantissa_chars, 0, 10);
+  decimal_chars = constrain(decimal_chars, 0, 10);
+  unsigned int len = mantissa_chars + decimal_chars + 1;
+
+  dtostrf(f, len, decimal_chars, str);
+
+  char format[20];
+  sprintf(format, "%%%ds", len);
+
+  sprintf(str, format, str);
+
+  for(unsigned int i = 0; i < len; i++) {
+    if (' ' == str[i]) {
+      str[i] = padding;
+    }
+  }
 }
 
 // y(t) = A * sin(2πft + φ)

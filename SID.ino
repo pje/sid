@@ -1020,26 +1020,6 @@ void disable_pulse_width_modulation_mode() {
   }
 }
 
-// need this because Arduino's default `sprintf` is broken with float input :(
-void float_as_padded_string(char *str, double f, signed char mantissa_chars, signed char decimal_chars, char padding) {
-  mantissa_chars = constrain(mantissa_chars, 0, 10);
-  decimal_chars = constrain(decimal_chars, 0, 10);
-  size_t len = mantissa_chars + decimal_chars + 1;
-
-  dtostrf(f, len, decimal_chars, str);
-
-  char format[20];
-  sprintf(format, "%%%ds", len);
-
-  sprintf(str, format, str);
-
-  for(unsigned int i = 0; i < len; i++) {
-    if (' ' == str[i]) {
-      str[i] = padding;
-    }
-  }
-}
-
 void handle_state_dump_request(bool human) {
   // for testing purposes, print the state of our sid representation, which
   // should (hopefully) mirror what the SID's registers are right now
@@ -1518,17 +1498,9 @@ void clean_slate() {
   #if DEBUG_LOGGING
     unsigned int dq_bytes = sizeof(deque);
     unsigned int ht_bytes = sizeof(hash_table);
-    unsigned int db_bytes = sizeof(notes->ht->array) * sizeof(maybe_hash_table_element);
+    unsigned int db_bytes = sizeof(maybe_hash_table_element) * notes->ht->max_size;
 
-    Serial.print(F("allocated hash_deque bytes: "));
-    Serial.print(dq_bytes);
-    Serial.print(F(" + "));
-    Serial.print(ht_bytes);
-    Serial.print(F(" + "));
-    Serial.print(db_bytes);
-    Serial.print(F(" = "));
-    Serial.print(dq_bytes + ht_bytes + db_bytes);
-    Serial.print(F(" bytes\n"));
+    printf("bytes allocated for deque/hash: %u + %u + %u = %u\n", dq_bytes, ht_bytes, db_bytes, dq_bytes + ht_bytes + db_bytes);
   #endif
 
   polyphony = 3;
