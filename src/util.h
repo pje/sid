@@ -15,6 +15,27 @@ typedef unsigned int word;
 byte lowNibble(byte b) { return(b & 0B00001111); }
 byte highNibble(byte b) { return((b & 0B11110000) >> 4); }
 
+char *dtostrf (double val, signed char width, unsigned char prec, char *sout); // will be defined later in avr/dtostrf.c
+extern char *__malloc_heap_start;
+
+#ifdef __arm__
+// should use uinstd.h to define sbrk but Due causes a conflict
+extern "C" char* sbrk(int incr);
+#else  // __ARM__
+extern char *__brkval;
+#endif  // __arm__
+
+int freeMemory() {
+  char top;
+#ifdef __arm__
+  return &top - reinterpret_cast<char*>(sbrk(0));
+#elif defined(CORE_TEENSY) || (ARDUINO > 103 && ARDUINO != 151)
+  return &top - __brkval;
+#else  // __arm__
+  return __brkval ? &top - __brkval : &top - __malloc_heap_start;
+#endif  // __arm__
+}
+
 void print_byte_in_binary(byte b) {
   static char str[9];
   str[0] = '\0';
