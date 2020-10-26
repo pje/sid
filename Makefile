@@ -1,7 +1,7 @@
 BOARD_PORT?=/dev/cu.usbmodemC1
 ARDUINO_HARDWARE_DIR?=~/Library/Arduino15/packages/arduino/hardware/avr/1.8.3
 
-BUILD_PROPERTIES=$(shell arduino-cli compile --fqbn arduino:avr:micro --show-properties | grep 'compiler.cpp.flags=' | sed 's/fpermissive/fno-permissive/; s/{compiler.warning_flags}/-Wall -Wextra -Wpedantic/; s/std=gnu++11/std=gnu++17/')
+BUILD_PROPERTIES=$(shell arduino-cli compile --fqbn arduino:avr:micro --show-properties | grep 'compiler.cpp.flags=' | sed 's/fpermissive/fno-permissive/; s/{compiler.warning_flags}/-Wall -Wextra -Wno-missing-field-initializers/; s/std=gnu++11/std=gnu++17/')
 SOURCES=$(wildcard src/*.c)
 HEADERS=$(wildcard src/*.h)
 
@@ -10,6 +10,7 @@ deps: $(ARDUINO_HARDWARE_DIR)/variants/micro_norxled/pins_arduino.h $(ARDUINO_HA
 	arduino-cli core update-index
 	arduino-cli core install arduino:avr
 	arduino-cli lib install USBMIDI
+	git clone https://github.com/McNeight/MemoryFree ~/Documents/Arduino/libraries/MemoryFree
 
 $(ARDUINO_HARDWARE_DIR)/variants/micro_norxled/pins_arduino.h: $(CURDIR)/config/arduino_overrides/variants/micro_norxled/pins_arduino.h
 	mkdir -p $(ARDUINO_HARDWARE_DIR)/variants/micro_norxled/
@@ -27,14 +28,29 @@ upload: build
 format:
 	clang-format -i SID.ino $(SOURCES) $(HEADERS)
 
-TEST_SOURCES=$(wildcard test/*.c)
-TEST_RUNNERS=$(patsubst %test.c,%test,$(TEST_SOURCES))
+clean:
+	arduino-cli cache clean
+	rm -rf $(TEST_RUNNERS)
+	rm -rf test/*.dSYM
+	rm -rf build
+	rm -rf .clangd
 
-$(TEST_RUNNERS) : % : %.c
-	clang -rdynamic -std=c11 -Wall -Wextra --debug -g3 $< -o $@
+TEST_SOURCES=$(wildcard test/*.c)
+TEST_RUNNERS=test/deque_test test/hash_table_test test/util_test
+
+test/deque_test: test/deque_test.c test/test_helper.h src/deque.h src/list_node.h src/note.h src/hash_table.h
+	clang -std=c11 -Wall -Wextra --debug -g3 test/deque_test.c -o $@
+	chmod +x $@
+
+test/hash_table_test: test/hash_table_test.c test/test_helper.h src/note.h src/hash_table.h src/list_node.h src/note.h
+	clang -std=c11 -Wall -Wextra --debug test/hash_table_test.c -o $@
+	chmod +x $@
+
+test/util_test: test/util_test.c test/test_helper.h src/util.h
+	clang -std=c11 -Wall -Wextra --debug test/util_test.c -o $@
 	chmod +x $@
 
 test: $(TEST_RUNNERS)
 	set -e; $(foreach runner,$(TEST_RUNNERS),./$(runner);)
 
-.PHONY: build check-board config-overrides deps format test upload verify
+.PHONY: build check-board clean config-overrides deps format test upload verify

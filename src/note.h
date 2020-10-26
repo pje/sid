@@ -2,10 +2,9 @@
 #define SRC_NOTE_H
 
 #include <stdbool.h>
-#include "util.h"
 
 struct note {
-  byte number;
+  unsigned char number;
   // The midi note number.
   unsigned long on_time;
   // The time we got the midi "note on" message. 0 if none so far

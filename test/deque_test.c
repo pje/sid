@@ -1,11 +1,6 @@
 #include "test_helper.h"
 #include "../src/deque.h"
 
-#define NOTE_FIXTURES                                                          \
-  note note0 = {.number=100, .on_time=1, .off_time=2, .voiced_by_oscillator=0};\
-  note note1 = {.number=101, .on_time=2, .off_time=3, .voiced_by_oscillator=1};\
-  note note2 = {.number=102, .on_time=3, .off_time=4, .voiced_by_oscillator=2};
-
 void test_deque_initialize() {
   deque *dq = deque_initialize(3, stdout, _note_indexer, _note_node_print_function);
 

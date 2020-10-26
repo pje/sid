@@ -3,15 +3,19 @@
 #define HASH_TABLE_VAL struct note // easier to test than node*
 #include "../src/hash_table.h"
 
-void test_hash_table() {
+void test_hash_table_initialize() {
   hash_table *h = hash_table_initialize(3);
 
   assert_int_eq(3, h->max_size);
   assert_int_eq(0, h->size);
+  assert_long_eq(3 * sizeof(maybe_hash_table_element), sizeof(h->array[0]) * h->max_size);
 
-  note note0 = { .number=100, .on_time=0, .off_time=0, .voiced_by_oscillator=0 };
-  note note1 = { .number=101, .on_time=1, .off_time=10, .voiced_by_oscillator=1 };
-  note note2 = { .number=102, .on_time=2, .off_time=20, .voiced_by_oscillator=2 };
+  hash_table_free(h);
+}
+
+void test_hash_table_get_set() {
+  hash_table *h = hash_table_initialize(3);
+  NOTE_FIXTURES;
 
   // get/set no collisions
   HASH_TABLE_VAL *result0 = hash_table_set(h, 100, note0);
@@ -71,17 +75,20 @@ void test_hash_table() {
   assert_not_null(result2);
   assert_int_eq(102, result2->number);
   assert_int_eq(102, h->array[2].unwrap.value.number);
+}
 
-  // remove, collisions
-  hash_table_free(h);
-  h = hash_table_initialize(3);
+void test_hash_table_remove() {
+  hash_table *h = hash_table_initialize(3);
+  NOTE_FIXTURES;
+
   maybe_hash_table_val maybe0 = {.exists=false};
   maybe_hash_table_val maybe1 = {.exists=false};
   maybe_hash_table_val maybe2 = {.exists=false};
-  maybe_hash_table_val maybe3 = {.exists=false};
+
   unsigned int collision_index_0 = 0; // starting here, insert three collisions into the array
   unsigned int collision_index_1 = 1;
   unsigned int collision_index_2 = 2;
+
   hash_table_set(h, 0, note0); // hashes to 0
   hash_table_set(h, 3, note1); // hashes to 0
   hash_table_set(h, 6, note2); // hashes to 0
@@ -112,13 +119,20 @@ void test_hash_table() {
   assert_false(h->array[collision_index_0].exists);
   assert_false(h->array[collision_index_1].exists);
   assert_false(h->array[collision_index_2].exists);
+}
 
-  // load factor
-  hash_table_free(h);
-  h = hash_table_initialize(3);
+void test_hash_table_load_factor() {
+  hash_table *h = hash_table_initialize(3);
+  NOTE_FIXTURES;
+
   hash_table_set(h, 0, note0);
   hash_table_set(h, 3, note1);
   hash_table_set(h, 6, note2);
+
+  maybe_hash_table_val maybe0;
+  maybe_hash_table_val maybe1;
+  maybe_hash_table_val maybe2;
+  maybe_hash_table_val maybe3;
 
   maybe0 = hash_table_remove(h, 0);
   assert_true(maybe0.exists);
@@ -139,10 +153,14 @@ void test_hash_table() {
   hash_table_free(h);
 }
 
+
 int main() {
   setvbuf(stdout, NULL, _IONBF, 0); // disable buffering on stdout
 
-  test_hash_table();
+  test_hash_table_initialize();
+  test_hash_table_get_set();
+  test_hash_table_remove();
+  test_hash_table_load_factor();
 
   printf("\n");
   return TEST_FAILURE_COUNT;

@@ -1,6 +1,7 @@
 #ifndef TEST_HELPER_H
 #define TEST_HELPER_H
 
+#include <math.h>
 #include <stdio.h>
 #include <stdbool.h>
 
@@ -80,5 +81,10 @@ volatile unsigned int TEST_FAILURE_COUNT = 0;
     printf(".");                                                               \
   }                                                                            \
 }
+
+#define NOTE_FIXTURES                                                          \
+  note note0 = {.number=100, .on_time=1, .off_time=2, .voiced_by_oscillator=0};\
+  note note1 = {.number=101, .on_time=2, .off_time=3, .voiced_by_oscillator=1};\
+  note note2 = {.number=102, .on_time=3, .off_time=4, .voiced_by_oscillator=2};
 
 #endif /* TEST_HELPER_H */
