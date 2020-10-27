@@ -1,6 +1,6 @@
 {
 	"pattrstorage" : 	{
-		"name" : "u607000485",
+		"name" : "init",
 		"slots" : 		{
 			"1" : 			{
 				"id" : 1,
@@ -30,8 +30,8 @@
 					"v1_test_enable" : [ 0.0 ],
 					"v1_waveform_toggle_noise" : [ 0.0 ],
 					"v1_waveform_toggle_ramp" : [ 0.0 ],
-					"v1_waveform_toggle_square" : [ 0.0 ],
-					"v1_waveform_toggle_triangle" : [ 1.0 ],
+					"v1_waveform_toggle_square" : [ 1.0 ],
+					"v1_waveform_toggle_triangle" : [ 0.0 ],
 					"v2_attack" : [ 0.0 ],
 					"v2_decay" : [ 0.0 ],
 					"v2_detune" : [ 0.0 ],
@@ -45,7 +45,7 @@
 					"v2_waveform_toggle_noise" : [ 0.0 ],
 					"v2_waveform_toggle_ramp" : [ 0.0 ],
 					"v2_waveform_toggle_square" : [ 0.0 ],
-					"v2_waveform_toggle_triangle" : [ 1.0 ],
+					"v2_waveform_toggle_triangle" : [ 0.0 ],
 					"v3_attack" : [ 0.0 ],
 					"v3_decay" : [ 0.0 ],
 					"v3_detune" : [ 0.0 ],
@@ -59,7 +59,7 @@
 					"v3_waveform_toggle_noise" : [ 0.0 ],
 					"v3_waveform_toggle_ramp" : [ 0.0 ],
 					"v3_waveform_toggle_square" : [ 0.0 ],
-					"v3_waveform_toggle_triangle" : [ 1.0 ],
+					"v3_waveform_toggle_triangle" : [ 0.0 ],
 					"volume" : [ 15.0 ],
 					"volume_modulation_mode" : [ 0.0 ]
 				}

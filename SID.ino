@@ -22,7 +22,7 @@ const unsigned int GLIDE_TIME_MIN_MILLIS = 1;
 const unsigned int GLIDE_TIME_MAX_MILLIS = 10000;
 const word MAX_PULSE_WIDTH_VALUE = 4095;
 const word DEFAULT_PULSE_WIDTH = 2048; // (2**12 - 1) / 2
-const byte DEFAULT_WAVEFORM = SID_TRIANGLE;
+const byte DEFAULT_WAVEFORM = SID_SQUARE;
 const byte DEFAULT_ATTACK = 0;
 const byte DEFAULT_DECAY = 0;
 const byte DEFAULT_SUSTAIN = 15;
@@ -33,7 +33,7 @@ const byte DEFAULT_VOLUME = 15;
 const unsigned int PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY = 65535;
 const float UPDATE_EVERY_MICROS = (100.0 / 4.41);
 
-byte polyphony = 3;
+byte polyphony = 1;
 word glide_time_raw_word;
 float glide_time_millis = DEFAULT_GLIDE_TIME_MILLIS;
 bool legato_mode = (polyphony == 1) && glide_time_millis > 0;
@@ -904,7 +904,7 @@ void clean_slate() {
   #endif
 
   initialize_glide_state();
-  polyphony = 3;
+  polyphony = 1;
   glide_time_millis = DEFAULT_GLIDE_TIME_MILLIS;
   legato_mode = (polyphony == 1) && (glide_time_millis > 0.01);
   midi_pitch_bend_max_semitones = 5;
@@ -925,9 +925,12 @@ void clean_slate() {
   last_update = 0;
 
   sid_zero_all_registers();
+
   for (int i = 0; i < MAX_POLYPHONY; i++) {
     sid_set_pulse_width(i, DEFAULT_PULSE_WIDTH);
-    sid_set_waveform(i, DEFAULT_WAVEFORM, true);
+    if (i < polyphony) {
+      sid_set_waveform(i, DEFAULT_WAVEFORM, true);
+    }
     sid_set_attack(i, DEFAULT_ATTACK);
     sid_set_decay(i, DEFAULT_DECAY);
     sid_set_sustain(i, DEFAULT_SUSTAIN);
