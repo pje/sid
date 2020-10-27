@@ -2,7 +2,6 @@
 #define SRC_UTIL_H
 
 #include <math.h>
-#include <string.h>
 #include <stdio.h>
 
 typedef unsigned char byte;
@@ -78,7 +77,7 @@ double linear_envelope(double a, double d, double s, double r, double seconds, d
 // represent. What we have below is "scientific pitch notation". Ableton, maxmsp
 // and garageband use C3, which is shifted an octave lower.
 // https://en.wikipedia.org/wiki/Scientific_pitch_notation#See_also
-const double TWELFTH_ROOT_OF_TWO = 1.05946309436;
+const double TWELFTH_ROOT_OF_TWO = 1.0594630943592953;
 const int base_number = 57;
 const int base_freq = 440;
 

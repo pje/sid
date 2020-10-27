@@ -62,7 +62,7 @@ const float SID_MIN_OSCILLATOR_HERTZ = 16.35;
 const float SID_MAX_OSCILLATOR_HERTZ = 3951.06;
 
 // SID expects a 1Mhz clock signal on which to calculate oscillator frequencies
-const float CLOCK_SIGNAL_FACTOR = 0.0596;
+const double CLOCK_SIGNAL_FACTOR = 0.059604644775390625;
 
 const float sid_attack_values_to_seconds[16] = {
   0.002,
@@ -356,7 +356,7 @@ void sid_set_filter_mode(byte mode, bool on) {
 }
 
 void sid_set_voice_frequency(byte voice, double hertz) {
-  word frequency = (hertz / CLOCK_SIGNAL_FACTOR);
+  word frequency = round(hertz / CLOCK_SIGNAL_FACTOR);
   byte hiFrequency = highByte(frequency);
   byte loFrequency = lowByte(frequency);
 

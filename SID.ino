@@ -44,13 +44,19 @@ byte glide_from = 0;
 int midi_pitch_bend_max_semitones = DEFAULT_PITCH_BEND_SEMITONES;
 double current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
 int detune_max_semitones = 5;
-// experimental: used to implement 14-bit resolution for PW values spread over two sequential CC messages
+// temp vars for implementing 14-bit midi CC messages spread over two messages
 word pw_v1     = 0;
 byte pw_v1_lsb = 0;
 word pw_v2     = 0;
 byte pw_v2_lsb = 0;
 word pw_v3     = 0;
 byte pw_v3_lsb = 0;
+word detune_v1_raw_word = 0;
+byte detune_v1_lsb      = 0;
+word detune_v2_raw_word = 0;
+byte detune_v2_lsb      = 0;
+word detune_v3_raw_word = 0;
+byte detune_v3_lsb      = 0;
 word filter_frequency = 0;
 byte filter_frequency_lsb = 0;
 word rpn_value = 0; // used to implement RPN messages
@@ -240,6 +246,7 @@ void handle_voice_test_change(byte voice, bool on) {
   }
 }
 
+// detune factor: [-1.0...1.0]
 void handle_voice_detune_change(byte voice, double detune_factor) {
   voice_detune_percents[voice] = detune_factor;
   double semitone_change = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[voice] * detune_max_semitones);
@@ -481,7 +488,8 @@ void handle_state_dump_request(bool human) {
 
   if (human) {
     #if DEBUG_LOGGING
-      printf("V#  WAVE     FREQ    A      D      S    R      PW   TEST RING SYNC GATE FILT\n");
+      printf("V#  WAVE     FREQ    DTUN   A      D      S    R      PW   TEST RING SYNC GATE FILT\n");
+
       for (unsigned int i = 0; i < 3; i++) {
         printf("V%u  ", i);
 
@@ -502,6 +510,10 @@ void handle_state_dump_request(bool human) {
 
         float_as_padded_string(float_string, f, 4, 2, '0');
         printf(" %s", float_string);
+
+        f = voice_detune_percents[i] * 100;
+        float_as_padded_string(float_string, f, 3, 1, '0');
+        printf(" %s%%", float_string);
 
         double a = get_attack_seconds(i);
         double d = get_decay_seconds(i);
@@ -739,14 +751,32 @@ void handle_midi_input(Stream *midi_port) {
           handle_voice_filter_change(2, controller_value == 127);
           break;
 
+        // LSB messages will not trigger change on the SID!
+        // must be followed up by a MSB message to trigger a SID update w/ both
+        case MIDI_CONTROL_CHANGE_SET_DETUNE_LSB_VOICE_ONE:
+          detune_v1_lsb = controller_value & 0B01111111;
+          break;
+        case MIDI_CONTROL_CHANGE_SET_DETUNE_LSB_VOICE_TWO:
+          detune_v2_lsb = controller_value & 0B01111111;
+          break;
+        case MIDI_CONTROL_CHANGE_SET_DETUNE_LSB_VOICE_THREE:
+          detune_v3_lsb = controller_value & 0B01111111;
+          break;
+
         case MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_ONE:
-          handle_voice_detune_change(0, ((controller_value / 64.0) - 1));
+          detune_v1_raw_word = ((word)controller_value & 0B01111111) << 7;
+          detune_v1_raw_word += detune_v1_lsb;
+          handle_voice_detune_change(0, ((detune_v1_raw_word / 16383.0) * 2 - 1));
           break;
         case MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_TWO:
-          handle_voice_detune_change(1, ((controller_value / 64.0) - 1));
+          detune_v2_raw_word = ((word)controller_value & 0B01111111) << 7;
+          detune_v2_raw_word += detune_v2_lsb;
+          handle_voice_detune_change(1, ((detune_v2_raw_word / 16383.0) * 2 - 1));
           break;
         case MIDI_CONTROL_CHANGE_SET_DETUNE_VOICE_THREE:
-          handle_voice_detune_change(2, ((controller_value / 64.0) - 1));
+          detune_v3_raw_word = ((word)controller_value & 0B01111111) << 7;
+          detune_v3_raw_word += detune_v3_lsb;
+          handle_voice_detune_change(2, ((detune_v3_raw_word / 16383.0) * 2 - 1));
           break;
 
         case MIDI_CONTROL_CHANGE_TOGGLE_FILTER_MODE_LP:
@@ -916,6 +946,12 @@ void clean_slate() {
   pw_v2_lsb = 0;
   pw_v3     = 0;
   pw_v3_lsb = 0;
+  detune_v1_raw_word = 0;
+  detune_v1_lsb      = 0;
+  detune_v2_raw_word = 0;
+  detune_v2_lsb      = 0;
+  detune_v3_raw_word = 0;
+  detune_v3_lsb      = 0;
   filter_frequency = 0;
   filter_frequency_lsb = 0;
   rpn_value = 0;
