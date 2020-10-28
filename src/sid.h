@@ -128,7 +128,7 @@ void sid_set_voice_frequency(byte voice, double hertz);
 void sid_set_gate(byte voice, bool state);
 // NB: getters return our current tally of what we've sent to the SID. We can't actually read register values from SID.
 word get_voice_frequency_register_value(byte voice);
-float get_voice_frequency(byte voice);
+double get_voice_frequency(byte voice);
 word get_voice_pulse_width(byte voice);
 byte get_voice_waveform(byte voice);
 bool get_voice_test_bit(byte voice);
@@ -192,6 +192,12 @@ void sid_set_volume(byte level) {
   byte data = (sid_state_bytes[address] & 0B11110000) | (level & 0B00001111);
   sid_transfer(address, data);
 }
+
+void sid_zero_waveform(byte voice) {
+  byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL;
+  byte data = sid_state_bytes[address] & 0B00001111;
+  sid_transfer(address, data);
+};
 
 void sid_set_waveform(byte voice, byte waveform_mask, bool on) {
   byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL;
@@ -393,7 +399,7 @@ word get_voice_frequency_register_value(byte voice) {
   return value;
 }
 
-float get_voice_frequency(byte voice) {
+double get_voice_frequency(byte voice) {
   word frequency = get_voice_frequency_register_value(voice);
   double hertz = frequency * CLOCK_SIGNAL_FACTOR;
   return(hertz);

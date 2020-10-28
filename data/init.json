@@ -5,14 +5,13 @@
 			"1" : 			{
 				"id" : 1,
 				"data" : 				{
-					"filter_frequency" : [ 400.161211529066918 ],
+					"filter_frequency" : [ 799.545676599902322 ],
 					"filter_resonance" : [ 100.0 ],
 					"filter_toggle_bp" : [ 0.0 ],
 					"filter_toggle_hp" : [ 0.0 ],
 					"filter_toggle_lp" : [ 0.0 ],
-					"glide_time" : [ 100.0 ],
+					"glide_time" : [ 100.103766099005071 ],
 					"log_dump" : [ 0.0 ],
-					"pitch_bend" : [ 0.0 ],
 					"pitch_bend_range" : [ 5.0 ],
 					"polyphony_mode_select" : [ 1.0 ],
 					"reset" : [ 0.0 ],

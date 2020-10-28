@@ -45,17 +45,17 @@ int midi_pitch_bend_max_semitones = DEFAULT_PITCH_BEND_SEMITONES;
 double current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
 int detune_max_semitones = 5;
 // temp vars for implementing 14-bit midi CC messages spread over two messages
-word pw_v1     = 0;
+word pw_v1     = DEFAULT_PULSE_WIDTH;
 byte pw_v1_lsb = 0;
-word pw_v2     = 0;
+word pw_v2     = DEFAULT_PULSE_WIDTH;
 byte pw_v2_lsb = 0;
-word pw_v3     = 0;
+word pw_v3     = DEFAULT_PULSE_WIDTH;
 byte pw_v3_lsb = 0;
-word detune_v1_raw_word = 0;
+word detune_v1_raw_word = 8192;
 byte detune_v1_lsb      = 0;
-word detune_v2_raw_word = 0;
+word detune_v2_raw_word = 8192;
 byte detune_v2_lsb      = 0;
-word detune_v3_raw_word = 0;
+word detune_v3_raw_word = 8192;
 byte detune_v3_lsb      = 0;
 word filter_frequency = 0;
 byte filter_frequency_lsb = 0;
@@ -76,6 +76,11 @@ unsigned long time_in_seconds = 0;
 struct note oscillator_notes[3] = { { .number=0, .on_time=0, .off_time=0 } };
 double voice_detune_percents[MAX_POLYPHONY] = { 0.0, 0.0, 0.0 }; // [-1.0 .. 1.0]
 deque *notes = deque_initialize(deque_size, stdout, _note_indexer, _note_node_print_function);
+
+static char float_string[15];
+
+void clean_slate();
+void update_oscillator_frequencies();
 
 void clock_high() {
   uint8_t oldSREG = SREG;
@@ -249,9 +254,7 @@ void handle_voice_test_change(byte voice, bool on) {
 // detune factor: [-1.0...1.0]
 void handle_voice_detune_change(byte voice, double detune_factor) {
   voice_detune_percents[voice] = detune_factor;
-  double semitone_change = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[voice] * detune_max_semitones);
-  double frequency = note_number_to_frequency(oscillator_notes[voice].number) * pow(2, semitone_change / 12.0);
-  sid_set_voice_frequency(voice, frequency);
+  update_oscillator_frequencies();
 }
 
 // set the oscillator frequency and gate it!
@@ -438,8 +441,6 @@ void initialize_glide_state() {
   glide_from = 0;
 }
 
-void clean_slate();
-
 void handle_program_change(byte program_number) {
   switch (program_number) {
   case MIDI_PROGRAM_CHANGE_SET_GLOBAL_MODE_PARAPHONIC:
@@ -461,6 +462,7 @@ void handle_program_change(byte program_number) {
     break;
   case MIDI_PROGRAM_CHANGE_HARDWARE_RESET:
     clean_slate();
+    break;
   }
 }
 
@@ -473,13 +475,24 @@ void enable_pulse_width_modulation_mode() {
   }
 }
 
+void reset_voice_waveforms_to_default() {
+  for (unsigned int i = 0; i < polyphony; i++) {
+    if (i < polyphony) {
+      sid_set_waveform(i, DEFAULT_WAVEFORM, true);
+    } else {
+      sid_zero_waveform(i);
+    }
+  }
+}
+
 void disable_pulse_width_modulation_mode() {
   pulse_width_modulation_mode_active = false;
 
   for (int i = 0; i < 3; i++) {
     sid_set_test(i, false);
-    sid_set_waveform(i, DEFAULT_WAVEFORM, true);
   }
+
+  reset_voice_waveforms_to_default();
 }
 
 void handle_state_dump_request(bool human) {
@@ -919,6 +932,43 @@ void handle_midi_input(Stream *midi_port) {
   }
 }
 
+// manually update oscillator frequencies to account for glide times
+void update_oscillator_frequencies() {
+  unsigned long glide_duration_so_far_millis = (time_in_micros - glide_start_time_micros) / 1000;
+  double glide_percentage_progress;
+  if (glide_time_millis > 0) {
+    glide_percentage_progress = glide_duration_so_far_millis / glide_time_millis;
+  } else {
+    glide_percentage_progress = 1.0;
+  }
+  double glide_frequency_distance = 0.0;
+  double glide_hertz_to_add = 0.0;
+  double from_hertz = 0.0;
+  double to_hertz = 0.0;
+  double semitones_bent = 0.0;
+
+  for (int i = 0; i < MAX_POLYPHONY; i++) {
+    byte voice_note = oscillator_notes[i].number;
+    if (voice_note != 0) {
+      byte note_target = glide_time_millis > 0 && glide_to != 0 ? glide_to : voice_note;
+      semitones_bent = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
+      to_hertz = note_number_to_frequency(note_target) * pow(2, semitones_bent / 12.0);
+
+      if (glide_percentage_progress >= 1.0) { // don't over-glide
+        sid_set_voice_frequency(i, to_hertz);
+        last_glide_update_micros = micros();
+        continue;
+      }
+
+      from_hertz = note_number_to_frequency(glide_from) * pow(2, semitones_bent / 12.0);
+      glide_frequency_distance = to_hertz - from_hertz;
+      glide_hertz_to_add = glide_frequency_distance * glide_percentage_progress;
+      sid_set_voice_frequency(i, from_hertz + glide_hertz_to_add);
+      last_glide_update_micros = micros();
+    }
+  }
+}
+
 void clean_slate() {
   memset(sid_state_bytes, 0, 25 * sizeof(*sid_state_bytes));
   memset(voice_detune_percents, 0, MAX_POLYPHONY*sizeof(*voice_detune_percents));
@@ -940,19 +990,19 @@ void clean_slate() {
   midi_pitch_bend_max_semitones = 5;
   current_pitchbend_amount = 0.0;
   detune_max_semitones = 5;
-  pw_v1     = 0;
+  pw_v1     = DEFAULT_PULSE_WIDTH;
   pw_v1_lsb = 0;
-  pw_v2     = 0;
+  pw_v2     = DEFAULT_PULSE_WIDTH;
   pw_v2_lsb = 0;
-  pw_v3     = 0;
+  pw_v3     = DEFAULT_PULSE_WIDTH;
   pw_v3_lsb = 0;
-  detune_v1_raw_word = 0;
+  detune_v1_raw_word = 8192;
   detune_v1_lsb      = 0;
-  detune_v2_raw_word = 0;
+  detune_v2_raw_word = 8192;
   detune_v2_lsb      = 0;
-  detune_v3_raw_word = 0;
+  detune_v3_raw_word = 8192;
   detune_v3_lsb      = 0;
-  filter_frequency = 0;
+  filter_frequency = DEFAULT_FILTER_FREQUENCY;
   filter_frequency_lsb = 0;
   rpn_value = 0;
   data_entry = 0;
@@ -961,12 +1011,9 @@ void clean_slate() {
   last_update = 0;
 
   sid_zero_all_registers();
-
+  reset_voice_waveforms_to_default();
   for (int i = 0; i < MAX_POLYPHONY; i++) {
     sid_set_pulse_width(i, DEFAULT_PULSE_WIDTH);
-    if (i < polyphony) {
-      sid_set_waveform(i, DEFAULT_WAVEFORM, true);
-    }
     sid_set_attack(i, DEFAULT_ATTACK);
     sid_set_decay(i, DEFAULT_DECAY);
     sid_set_sustain(i, DEFAULT_SUSTAIN);
@@ -1018,32 +1065,12 @@ void loop () {
     }
   }
 
-  // manually update oscillator frequencies to account for glide times
   if (legato_mode &&
       glide_time_millis > 0 &&
       (oscillator_notes[0].number != 0 || oscillator_notes[1].number != 0 || oscillator_notes[2].number != 0 ) &&
-      ((time_in_micros - (glide_time_millis * 1000.0)) <= glide_start_time_micros) &&
-      ((time_in_micros - last_glide_update_micros) > UPDATE_EVERY_MICROS)) {
-
-    double glide_duration_so_far_millis = (time_in_micros - glide_start_time_micros) / 1000.0;
-    double glide_percentage_progress = glide_duration_so_far_millis / glide_time_millis;
-    double glide_frequency_distance = 0.0;
-    double glide_hertz_to_add = 0.0;
-    double freq_after_pb_and_detune = 0.0;
-
-    for (int i = 0; i < MAX_POLYPHONY; i++) {
-      if (oscillator_notes[i].number != 0) {
-        freq_after_pb_and_detune = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
-        freq_after_pb_and_detune = note_number_to_frequency(glide_from) * pow(2, freq_after_pb_and_detune / 12.0);
-
-        glide_frequency_distance = note_number_to_frequency(glide_to) - note_number_to_frequency(glide_from);
-        glide_hertz_to_add = glide_frequency_distance * glide_percentage_progress;
-
-        sid_set_voice_frequency(i, (word)(freq_after_pb_and_detune + glide_hertz_to_add));
-      }
-    }
-
-    last_glide_update_micros = micros();
+      ((last_glide_update_micros + UPDATE_EVERY_MICROS) <= time_in_micros))
+  {
+    update_oscillator_frequencies();
   }
 
   // if any notes are playing in `volume_modulation_mode`, we have to implement
