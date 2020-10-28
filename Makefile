@@ -6,11 +6,11 @@ SOURCES=$(wildcard src/*.c)
 HEADERS=$(wildcard src/*.h)
 
 deps: $(ARDUINO_HARDWARE_DIR)/variants/micro_norxled/pins_arduino.h $(ARDUINO_HARDWARE_DIR)/boards.local.txt
-	brew install arduino-cli
+	which arduino-cli || brew install arduino-cli
 	arduino-cli core update-index
 	arduino-cli core install arduino:avr
 	arduino-cli lib install USBMIDI
-	git clone https://github.com/McNeight/MemoryFree ~/Documents/Arduino/libraries/MemoryFree
+	[ -e ~/Documents/Arduino/libraries/MemoryFree ] || git clone https://github.com/McNeight/MemoryFree ~/Documents/Arduino/libraries/MemoryFree
 
 $(ARDUINO_HARDWARE_DIR)/variants/micro_norxled/pins_arduino.h: $(CURDIR)/config/arduino_overrides/variants/micro_norxled/pins_arduino.h
 	mkdir -p $(ARDUINO_HARDWARE_DIR)/variants/micro_norxled/
