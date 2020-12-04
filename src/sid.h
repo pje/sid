@@ -62,7 +62,7 @@ const float SID_MIN_OSCILLATOR_HERTZ = 16.35;
 const float SID_MAX_OSCILLATOR_HERTZ = 3951.06;
 
 // SID expects a 1Mhz clock signal on which to calculate oscillator frequencies
-const double CLOCK_SIGNAL_FACTOR = 0.059604644775390625;
+const float CLOCK_SIGNAL_FACTOR = 0.059604644775390625;
 
 const float sid_attack_values_to_seconds[16] = {
   0.002,
@@ -124,11 +124,11 @@ void sid_set_filter_frequency(word hertz); // 11-bit value
 void sid_set_filter_resonance(byte amount);
 void sid_set_filter(byte voice, bool on);
 void sid_set_filter_mode(byte mode, bool on);
-void sid_set_voice_frequency(byte voice, double hertz);
+void sid_set_voice_frequency(byte voice, float hertz);
 void sid_set_gate(byte voice, bool state);
 // NB: getters return our current tally of what we've sent to the SID. We can't actually read register values from SID.
 word get_voice_frequency_register_value(byte voice);
-double get_voice_frequency(byte voice);
+float get_voice_frequency(byte voice);
 word get_voice_pulse_width(byte voice);
 byte get_voice_waveform(byte voice);
 bool get_voice_test_bit(byte voice);
@@ -361,7 +361,7 @@ void sid_set_filter_mode(byte mode, bool on) {
   sid_transfer(address, data);
 }
 
-void sid_set_voice_frequency(byte voice, double hertz) {
+void sid_set_voice_frequency(byte voice, float hertz) {
   word frequency = round(hertz / CLOCK_SIGNAL_FACTOR);
   byte hiFrequency = highByte(frequency);
   byte loFrequency = lowByte(frequency);
@@ -399,10 +399,9 @@ word get_voice_frequency_register_value(byte voice) {
   return value;
 }
 
-double get_voice_frequency(byte voice) {
+float get_voice_frequency(byte voice) {
   word frequency = get_voice_frequency_register_value(voice);
-  double hertz = frequency * CLOCK_SIGNAL_FACTOR;
-  return(hertz);
+  return(frequency * CLOCK_SIGNAL_FACTOR);
 }
 
 word get_voice_pulse_width(byte voice) {

@@ -2,7 +2,7 @@
 #include "../src/util.h"
 
 void test_sine_waveform() {
-  double result = sine_waveform(1.0, 0, 1.0, 0.0);
+  float result = sine_waveform(1.0, 0, 1.0, 0.0);
   assert_float_eq(0.0, result);
 
   result = sine_waveform(1.0, 0.25, 1.0, 0.0);
@@ -19,7 +19,7 @@ void test_sine_waveform() {
 }
 
 void test_linear_envelope() {
-  double result = 0;
+  float result = 0;
   // attack
   result = linear_envelope(10.0, 5.0, 0.5, 5.0, 3.0, -1.0);
   assert_float_eq(0.3, result);

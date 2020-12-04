@@ -155,7 +155,7 @@ void deque_free(deque *dq) {
 //
 // O(1)
 void deque_append_replace(deque *dq, NODE_DATA node_data) {
-  int key = dq->node_index_function(dq, node_data);
+  unsigned int key = dq->node_index_function(dq, node_data);
   node *new_node = NULL;
   node *former_lasts_previous = dq->last ? dq->last->previous : NULL;
 
@@ -199,7 +199,7 @@ void deque_append_replace(deque *dq, NODE_DATA node_data) {
 //
 // O(1)
 void deque_prepend_replace(deque *dq, NODE_DATA node_data) {
-  int key = dq->node_index_function(dq, node_data);
+  unsigned int key = dq->node_index_function(dq, node_data);
   node *new_node = NULL;
   node *former_firsts_next = dq->first ? dq->first->next : NULL;
 

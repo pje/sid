@@ -42,8 +42,8 @@ unsigned long glide_start_time_micros = 0;
 byte glide_to = 0;
 byte glide_from = 0;
 int midi_pitch_bend_max_semitones = DEFAULT_PITCH_BEND_SEMITONES;
-double current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
-int detune_max_semitones = 5;
+float current_pitchbend_amount = 0.0; // [-1.0 .. 1.0]
+byte detune_max_semitones = 5;
 // temp vars for implementing 14-bit midi CC messages spread over two messages
 word pw_v1     = DEFAULT_PULSE_WIDTH;
 byte pw_v1_lsb = 0;
@@ -74,7 +74,7 @@ unsigned long time_in_micros = 0;
 unsigned long time_in_seconds = 0;
 
 struct note oscillator_notes[3] = { { .number=0, .on_time=0, .off_time=0 } };
-double voice_detune_percents[MAX_POLYPHONY] = { 0.0, 0.0, 0.0 }; // [-1.0 .. 1.0]
+float voice_detune_percents[MAX_POLYPHONY] = { 0.0, 0.0, 0.0 }; // [-1.0 .. 1.0]
 deque *notes = deque_initialize(deque_size, stdout, _note_indexer, _note_node_print_function);
 
 static char float_string[15];
@@ -136,7 +136,7 @@ void start_clock() {
 }
 
 void nullify_notes_playing() {
-  for (int i = 0; i < MAX_POLYPHONY; i++) {
+  for (unsigned char i = 0; i < MAX_POLYPHONY; i++) {
     oscillator_notes[i] = { .number = 0, .on_time = 0, .off_time = 0 };
   }
 
@@ -145,7 +145,7 @@ void nullify_notes_playing() {
 
 void handle_voice_attack_change(byte voice, byte envelope_value) {
   if (polyphony > 1) {
-    for (int i = 0; i < polyphony; i++) {
+    for (unsigned char i = 0; i < polyphony; i++) {
       sid_set_attack(i, envelope_value);
     }
   } else {
@@ -155,7 +155,7 @@ void handle_voice_attack_change(byte voice, byte envelope_value) {
 
 void handle_voice_decay_change(byte voice, byte envelope_value) {
   if (polyphony > 1) {
-    for (int i = 0; i < 3; i++) {
+    for (unsigned char i = 0; i < 3; i++) {
       sid_set_decay(i, envelope_value);
     }
   } else {
@@ -165,7 +165,7 @@ void handle_voice_decay_change(byte voice, byte envelope_value) {
 
 void handle_voice_sustain_change(byte voice, byte envelope_value) {
   if (polyphony > 1) {
-    for (int i = 0; i < 3; i++) {
+    for (unsigned char i = 0; i < 3; i++) {
       sid_set_sustain(i, envelope_value);
     }
   } else {
@@ -175,7 +175,7 @@ void handle_voice_sustain_change(byte voice, byte envelope_value) {
 
 void handle_voice_release_change(byte voice, byte envelope_value) {
   if (polyphony > 1) {
-    for (int i = 0; i < 3; i++) {
+    for (unsigned char i = 0; i < 3; i++) {
       sid_set_release(i, envelope_value);
     }
   } else {
@@ -187,7 +187,7 @@ void handle_voice_waveform_change(byte voice, byte waveform, bool on) {
   if (polyphony == 1) {
     sid_toggle_waveform(voice, waveform, on);
   } else {
-    for (int i = 0; i < 3; i++) {
+    for (unsigned char i = 0; i < 3; i++) {
       sid_toggle_waveform(i, waveform, on);
     }
   }
@@ -213,7 +213,7 @@ void handle_voice_filter_change(byte voice, bool on) {
 
 void handle_voice_pulse_width_change(byte voice, word frequency) {
   if (polyphony > 1) {
-    for (int i = 0; i < polyphony; i++) {
+    for (unsigned char i = 0; i < polyphony; i++) {
       sid_set_pulse_width(i, frequency);
     }
   } else {
@@ -223,7 +223,7 @@ void handle_voice_pulse_width_change(byte voice, word frequency) {
 
 void handle_voice_ring_mod_change(byte voice, bool on) {
   if (polyphony > 1) {
-    for (int i = 0; i < polyphony; i++) {
+    for (unsigned char i = 0; i < polyphony; i++) {
       sid_set_ring_mod(i, on);
     }
   } else {
@@ -233,7 +233,7 @@ void handle_voice_ring_mod_change(byte voice, bool on) {
 
 void handle_voice_sync_change(byte voice, bool on) {
   if (polyphony > 1) {
-    for (int i = 0; i < polyphony; i++) {
+    for (unsigned char i = 0; i < polyphony; i++) {
       sid_set_sync(i, on);
     }
   } else {
@@ -243,7 +243,7 @@ void handle_voice_sync_change(byte voice, bool on) {
 
 void handle_voice_test_change(byte voice, bool on) {
   if (polyphony > 1) {
-    for (int i = 0; i < polyphony; i++) {
+    for (unsigned char i = 0; i < polyphony; i++) {
       sid_set_test(i, on);
     }
   } else {
@@ -252,7 +252,7 @@ void handle_voice_test_change(byte voice, bool on) {
 }
 
 // detune factor: [-1.0...1.0]
-void handle_voice_detune_change(byte voice, double detune_factor) {
+void handle_voice_detune_change(byte voice, float detune_factor) {
   voice_detune_percents[voice] = detune_factor;
   update_oscillator_frequencies();
 }
@@ -302,8 +302,8 @@ void log_load_stats() {
     freeMemory(),
     notes->ht->size,
     notes->ht->max_size,
-    int(hash_table_load_factor(notes->ht) * 100),
-    int(hash_table_collision_ratio(notes->ht) * 100)
+    (unsigned int)(hash_table_load_factor(notes->ht) * 100),
+    (unsigned int)(hash_table_collision_ratio(notes->ht) * 100)
   );
 }
 
@@ -330,7 +330,7 @@ void handle_note_on(byte note_number) {
 
   // We're mono, so play the same base note on all 3 oscillators
   if (polyphony == 1) {
-    for (int i = 0; i < MAX_POLYPHONY; i++ ) {
+    for (unsigned char i = 0; i < MAX_POLYPHONY; i++ ) {
       if (get_voice_waveform(i) != 0) { // don't even try to play "muted" voices
         play_note_for_voice(note_number, i);
       }
@@ -340,7 +340,7 @@ void handle_note_on(byte note_number) {
 
   // we're poly, so every voice has its own frequency.
   // if there's a free voice, we can just use that.
-  for (int i = 0; i < polyphony; i++) {
+  for (unsigned char i = 0; i < polyphony; i++) {
     if (oscillator_notes[i].number == 0) {
       play_note_for_voice(note_number, i);
       return;
@@ -412,9 +412,9 @@ void handle_note_off(byte note_number) {
 }
 
 void handle_pitchbend_change(word pitchbend) {
-  double temp_double = 0.0;
+  float temp_float = 0.0;
   current_pitchbend_amount = ((pitchbend / 8192.0) - 1); // 8192 is the "neutral" pitchbend value (half of 2**14)
-  for (int i = 0; i < MAX_POLYPHONY; i++) {
+  for (unsigned char i = 0; i < MAX_POLYPHONY; i++) {
     if (oscillator_notes[i].number != 0) {
       temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
       temp_double = note_number_to_frequency(oscillator_notes[i].number) * pow(2, temp_double / 12.0);
@@ -425,8 +425,8 @@ void handle_pitchbend_change(word pitchbend) {
   }
 }
 
-void duplicate_voice(unsigned int from_voice, unsigned int to_voice) {
-  for (int i = 0; i < 7; i++) {
+void duplicate_voice(unsigned char from_voice, unsigned char to_voice) {
+  for (unsigned char i = 0; i < 7; i++) {
     sid_transfer((to_voice * 7) + i, sid_state_bytes[(from_voice * 7) + i]);
   }
 
@@ -450,7 +450,7 @@ void handle_program_change(byte program_number) {
     sid_set_gate(2, false);
     duplicate_voice(0, 1);
     duplicate_voice(0, 2);
-    for (int i = 0; i < 3; i++) {
+    for (unsigned char i = 0; i < 3; i++) {
       oscillator_notes[i] = { .number = 0, .on_time = 0, .off_time = 0 };
     }
     legato_mode = false;
@@ -469,7 +469,7 @@ void handle_program_change(byte program_number) {
 void enable_pulse_width_modulation_mode() {
   pulse_width_modulation_mode_active = true;
 
-  for (int i = 0; i < 3; i++) {
+  for (unsigned char i = 0; i < 3; i++) {
     sid_set_waveform(i, SID_SQUARE, true);
     sid_set_voice_frequency(i, PULSE_WIDTH_MODULATION_MODE_CARRIER_FREQUENCY);
   }
@@ -488,7 +488,7 @@ void reset_voice_waveforms_to_default() {
 void disable_pulse_width_modulation_mode() {
   pulse_width_modulation_mode_active = false;
 
-  for (int i = 0; i < 3; i++) {
+  for (unsigned char i = 0; i < 3; i++) {
     sid_set_test(i, false);
   }
 
@@ -519,7 +519,7 @@ void handle_state_dump_request(bool human) {
 
         char float_string[] = "       ";
 
-        double f = get_voice_frequency(i);
+        float f = get_voice_frequency(i);
 
         float_as_padded_string(float_string, f, 4, 2, '0');
         printf(" %s", float_string);
@@ -528,10 +528,10 @@ void handle_state_dump_request(bool human) {
         float_as_padded_string(float_string, f, 3, 1, '0');
         printf(" %s%%", float_string);
 
-        double a = get_attack_seconds(i);
-        double d = get_decay_seconds(i);
-        double s = get_sustain_percent(i);
-        double r = get_release_seconds(i);
+        float a = get_attack_seconds(i);
+        float d = get_decay_seconds(i);
+        float s = get_sustain_percent(i);
+        float r = get_release_seconds(i);
 
         float_as_padded_string(float_string, a, 2, 3, '0');
         printf(" %s", float_string);
@@ -584,7 +584,7 @@ void handle_state_dump_request(bool human) {
     inspect_oscillator_notes();
     deque_inspect(notes);
   } else {
-    for (int i = 0; i < 25; i++) {
+    for (unsigned char i = 0; i < 25; i++) {
       print_byte_in_binary(sid_state_bytes[i]);
     }
   }
@@ -935,19 +935,19 @@ void handle_midi_input(Stream *midi_port) {
 // manually update oscillator frequencies to account for glide times
 void update_oscillator_frequencies() {
   unsigned long glide_duration_so_far_millis = (time_in_micros - glide_start_time_micros) / 1000;
-  double glide_percentage_progress;
   if (glide_time_millis > 0) {
+  float glide_percentage_progress;
     glide_percentage_progress = glide_duration_so_far_millis / glide_time_millis;
   } else {
     glide_percentage_progress = 1.0;
   }
-  double glide_frequency_distance = 0.0;
-  double glide_hertz_to_add = 0.0;
-  double from_hertz = 0.0;
-  double to_hertz = 0.0;
-  double semitones_bent = 0.0;
+  float glide_frequency_distance = 0.0;
+  float glide_hertz_to_add = 0.0;
+  float from_hertz = 0.0;
+  float to_hertz = 0.0;
+  float semitones_bent = 0.0;
 
-  for (int i = 0; i < MAX_POLYPHONY; i++) {
+  for (unsigned char i = 0; i < MAX_POLYPHONY; i++) {
     byte voice_note = oscillator_notes[i].number;
     if (voice_note != 0) {
       byte note_target = glide_time_millis > 0 && glide_to != 0 ? glide_to : voice_note;
@@ -1012,7 +1012,7 @@ void clean_slate() {
 
   sid_zero_all_registers();
   reset_voice_waveforms_to_default();
-  for (int i = 0; i < MAX_POLYPHONY; i++) {
+  for (unsigned char i = 0; i < MAX_POLYPHONY; i++) {
     sid_set_pulse_width(i, DEFAULT_PULSE_WIDTH);
     sid_set_attack(i, DEFAULT_ATTACK);
     sid_set_decay(i, DEFAULT_DECAY);
@@ -1049,7 +1049,7 @@ void loop () {
   // SID has a bug where its oscillators sometimes "leak" the sound of previous
   // notes. To work around this, we have to set each oscillator's frequency to 0
   // only when we are certain it's past its ADSR time.
-  for (int i = 0; i < 3; i++) {
+  for (unsigned char i = 0; i < 3; i++) {
     if (oscillator_notes[i].off_time > 0 && (time_in_micros > (oscillator_notes[i].off_time + get_release_seconds(i) * 1000000.0))) {
       // we're past the release phase, so the voice can't be making any noise, so we must "fully" silence it
       sid_set_voice_frequency(i, 0);

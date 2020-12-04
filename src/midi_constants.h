@@ -70,10 +70,10 @@ const byte MIDI_CONTROL_CHANGE_SET_DETUNE_LSB_VOICE_TWO             = 73; // 7-b
 const byte MIDI_CONTROL_CHANGE_SET_DETUNE_LSB_VOICE_THREE           = 81; // 7-bit value (14-bit total)
 
 const byte MIDI_CONTROL_CHANGE_SET_VOLUME                           = 43; // 4-bit value
-const byte MIDI_CONTROL_CHANGE_TOGGLE_SID_TRANSFER_DEBUGGING        = 119; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_SET_GLIDE_TIME_LSB                   = 124; // 7-bit value (14-bit total)
 const byte MIDI_CONTROL_CHANGE_SET_GLIDE_TIME                       = 125; // 7-bit value (14-bit total)
 const byte MIDI_CONTROL_CHANGE_TOGGLE_ALL_TEST_BITS                 = 126; // 1-bit value
+const byte MIDI_CONTROL_CHANGE_STATE_DUMP                           = 127; // 7-bit value
 
 const byte MIDI_CONTROL_CHANGE_TOGGLE_VOLUME_MODULATION_MODE        = 84; // 1-bit value
 const byte MIDI_CONTROL_CHANGE_TOGGLE_PULSE_WIDTH_MODULATION_MODE   = 83; // 1-bit value
