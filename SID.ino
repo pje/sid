@@ -10,9 +10,12 @@
 #include "src/stdinout.h"
 #include "src/util.h"
 
-#define DEBUG_LOGGING true
+#define DEBUG_LOGGING false
 
-const unsigned int deque_size = 32; // the number of notes that can be held simultaneously
+unsigned long OSC_UPDATE_MICROS_TOTAL = 0;
+unsigned long OSC_UPDATES_COUNT = 0;
+
+const unsigned int deque_size = 8; // the number of notes that can be held simultaneously
 const int ARDUINO_SID_CHIP_SELECT_PIN = 13; // wired to SID's CS pin
 const int ARDUINO_SID_MASTER_CLOCK_PIN = 5; // wired to SID's Ø2 pin
 const byte MAX_POLYPHONY = 3;
@@ -75,6 +78,7 @@ unsigned long time_in_seconds = 0;
 
 struct note oscillator_notes[3] = { { .number=0, .on_time=0, .off_time=0 } };
 float voice_detune_percents[MAX_POLYPHONY] = { 0.0, 0.0, 0.0 }; // [-1.0 .. 1.0]
+float voice_frequency_mods[MAX_POLYPHONY] = { 0.0, 0.0, 0.0 };
 deque *notes = deque_initialize(deque_size, stdout, _note_indexer, _note_node_print_function);
 
 static char float_string[15];
@@ -254,6 +258,10 @@ void handle_voice_test_change(byte voice, bool on) {
 // detune factor: [-1.0...1.0]
 void handle_voice_detune_change(byte voice, float detune_factor) {
   voice_detune_percents[voice] = detune_factor;
+
+  double temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[voice] * detune_max_semitones);
+  voice_frequency_mods[voice] = pow(2, temp_double / 12.0);
+
   update_oscillator_frequencies();
 }
 
@@ -264,7 +272,7 @@ void handle_voice_detune_change(byte voice, float detune_factor) {
 void play_note_for_voice(byte note_number, unsigned char voice) {
   unsigned long now = micros();
   double hertz = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[voice] * detune_max_semitones);
-  hertz = note_number_to_frequency(note_number) * pow(2, hertz / 12.0);
+  hertz = note_number_to_frequency(note_number) * voice_frequency_mods[voice];
 
   if (!volume_modulation_mode_active) {
     if (get_voice_gate(voice)) { // this voice is already playing another note, still in its ADS phase. So glide might be relevant. Otherwise we can just clobber the gate
@@ -412,14 +420,15 @@ void handle_note_off(byte note_number) {
 }
 
 void handle_pitchbend_change(word pitchbend) {
-  float temp_float = 0.0;
+  double temp_double = 0.0;
   current_pitchbend_amount = ((pitchbend / 8192.0) - 1); // 8192 is the "neutral" pitchbend value (half of 2**14)
   for (unsigned char i = 0; i < MAX_POLYPHONY; i++) {
     if (oscillator_notes[i].number != 0) {
       temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
-      temp_double = note_number_to_frequency(oscillator_notes[i].number) * pow(2, temp_double / 12.0);
+      voice_frequency_mods[i] = pow(2, temp_double / 12.0);
+
       if (!pulse_width_modulation_mode_active){
-        sid_set_voice_frequency(i, temp_double);
+        sid_set_voice_frequency(i, note_number_to_frequency(oscillator_notes[i].number) * voice_frequency_mods[i]);
       }
     }
   }
@@ -589,7 +598,12 @@ void handle_state_dump_request(bool human) {
     }
   }
 
-  log_load_stats();
+  if (OSC_UPDATES_COUNT > 0) {
+    Serial.print(" avg oscillator update μs total: ");
+    Serial.println(OSC_UPDATE_MICROS_TOTAL / OSC_UPDATES_COUNT);
+  }
+
+  // log_load_stats();
 }
 
 void handle_midi_input(Stream *midi_port) {
@@ -934,9 +948,13 @@ void handle_midi_input(Stream *midi_port) {
 
 // manually update oscillator frequencies to account for glide times
 void update_oscillator_frequencies() {
+  OSC_UPDATES_COUNT++;
+  unsigned long start_time_micros = micros();
+
   unsigned long glide_duration_so_far_millis = (time_in_micros - glide_start_time_micros) / 1000;
-  if (glide_time_millis > 0) {
   float glide_percentage_progress;
+
+  if (glide_time_millis > 0) {
     glide_percentage_progress = glide_duration_so_far_millis / glide_time_millis;
   } else {
     glide_percentage_progress = 1.0;
@@ -945,14 +963,12 @@ void update_oscillator_frequencies() {
   float glide_hertz_to_add = 0.0;
   float from_hertz = 0.0;
   float to_hertz = 0.0;
-  float semitones_bent = 0.0;
 
   for (unsigned char i = 0; i < MAX_POLYPHONY; i++) {
     byte voice_note = oscillator_notes[i].number;
     if (voice_note != 0) {
       byte note_target = glide_time_millis > 0 && glide_to != 0 ? glide_to : voice_note;
-      semitones_bent = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
-      to_hertz = note_number_to_frequency(note_target) * pow(2, semitones_bent / 12.0);
+      to_hertz = note_number_to_frequency(note_target) * voice_frequency_mods[i];
 
       if (glide_percentage_progress >= 1.0) { // don't over-glide
         sid_set_voice_frequency(i, to_hertz);
@@ -960,13 +976,15 @@ void update_oscillator_frequencies() {
         continue;
       }
 
-      from_hertz = note_number_to_frequency(glide_from) * pow(2, semitones_bent / 12.0);
+      from_hertz = note_number_to_frequency(glide_from) * voice_frequency_mods[i];
       glide_frequency_distance = to_hertz - from_hertz;
       glide_hertz_to_add = glide_frequency_distance * glide_percentage_progress;
       sid_set_voice_frequency(i, from_hertz + glide_hertz_to_add);
       last_glide_update_micros = micros();
     }
   }
+
+  OSC_UPDATE_MICROS_TOTAL += (micros() - start_time_micros);
 }
 
 void clean_slate() {
@@ -1090,8 +1108,7 @@ void loop () {
 
       if (note != 0) {
         double note_frequency = note_number_to_frequency(note);
-        double temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
-        note_frequency = note_frequency * pow(2, temp_double / 12.0);
+        note_frequency = note_frequency * voice_frequency_mods[i];
 
         double yt = sine_waveform(note_frequency, time_in_seconds, 0.5, 0);
         yt *= linear_envelope(
@@ -1129,9 +1146,7 @@ void loop () {
     for (int i = 0; i < oscillator_notes_count; i++) {
       int note = oscillator_notes[i].number;
       double note_frequency = note_number_to_frequency(note);
-
-      double temp_double = (current_pitchbend_amount * midi_pitch_bend_max_semitones) + (voice_detune_percents[i] * detune_max_semitones);
-      note_frequency = note_frequency * pow(2, temp_double / 12.0);
+      note_frequency = note_frequency * voice_frequency_mods[i];
 
       if (note != 0) {
         double yt = sine_waveform(note_frequency, time_in_seconds, 0.5, 0);
