@@ -12,10 +12,7 @@
 
 #define DEBUG_LOGGING false
 
-unsigned long OSC_UPDATE_MICROS_TOTAL = 0;
-unsigned long OSC_UPDATES_COUNT = 0;
-
-const unsigned int deque_size = 8; // the number of notes that can be held simultaneously
+const unsigned int deque_size = 16; // the number of notes that can be held simultaneously
 const int ARDUINO_SID_CHIP_SELECT_PIN = 13; // wired to SID's CS pin
 const int ARDUINO_SID_MASTER_CLOCK_PIN = 5; // wired to SID's Ø2 pin
 const byte MAX_POLYPHONY = 3;
@@ -598,12 +595,7 @@ void handle_state_dump_request(bool human) {
     }
   }
 
-  if (OSC_UPDATES_COUNT > 0) {
-    Serial.print(" avg oscillator update μs total: ");
-    Serial.println(OSC_UPDATE_MICROS_TOTAL / OSC_UPDATES_COUNT);
-  }
-
-  // log_load_stats();
+  log_load_stats();
 }
 
 void handle_midi_input(Stream *midi_port) {
@@ -948,7 +940,6 @@ void handle_midi_input(Stream *midi_port) {
 
 // manually update oscillator frequencies to account for glide times
 void update_oscillator_frequencies() {
-  OSC_UPDATES_COUNT++;
   unsigned long start_time_micros = micros();
 
   unsigned long glide_duration_so_far_millis = (time_in_micros - glide_start_time_micros) / 1000;
@@ -983,8 +974,6 @@ void update_oscillator_frequencies() {
       last_glide_update_micros = micros();
     }
   }
-
-  OSC_UPDATE_MICROS_TOTAL += (micros() - start_time_micros);
 }
 
 void clean_slate() {
