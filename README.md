@@ -1,11 +1,15 @@
-# SID
+<p align=center>
+  <image src=sid.jpg width=333 height=333 align=left>
+  </image>
+</p>
 
+# SID
 Arduino/AVR C code for using the [MOS6581 SID sound chip](https://en.wikipedia.org/wiki/MOS_Technology_6581) as a MIDI synthesizer.
 
 Also:
 
-- [A Max4Live object](data/SID.amxd) to control the SID through Ableton Live
-- [A fritzing sketch](data/SID_shield.fzz) that (mostly correctly?) captures the wiring on the hand-soldered shield prototype I use
+  - [A Max4Live object](data/SID.amxd) to control the SID through Ableton Live
+  - [A fritzing sketch](data/SID_shield.fzz) that (mostly correctly?) captures the wiring on the hand-soldered shield prototype I use
 
 ### Status
 
