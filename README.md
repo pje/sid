@@ -4,7 +4,7 @@
 </p>
 
 # SID
-Firmware for using the [MOS 6581 SID](https://en.wikipedia.org/wiki/MOS_Technology_6581) (the Commodore 64 sound chip) as a MIDI synthesizer.
+Firmware for using the [MOS 6581 SID](https://en.wikipedia.org/wiki/MOS_Technology_6581) as a MIDI synthesizer.
 
 Also:
 
@@ -13,7 +13,7 @@ Also:
 
 ### Status
 
-Works on my Macbook, Arduino Micro™, and shield.
+Works on my machine™ (Macbook, Arduino Micro, 6581 + shield).
 
 ### Build
 
