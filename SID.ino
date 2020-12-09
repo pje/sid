@@ -75,7 +75,7 @@ unsigned long time_in_seconds = 0;
 
 struct note oscillator_notes[3] = { { .number=0, .on_time=0, .off_time=0 } };
 float voice_detune_percents[MAX_POLYPHONY] = { 0.0, 0.0, 0.0 }; // [-1.0 .. 1.0]
-float voice_frequency_mods[MAX_POLYPHONY] = { 0.0, 0.0, 0.0 };
+float voice_frequency_mods[MAX_POLYPHONY] = { 1.0, 1.0, 1.0 };
 deque *notes = deque_initialize(deque_size, stdout, _note_indexer, _note_node_print_function);
 
 static char float_string[15];
