@@ -4,7 +4,7 @@
 </p>
 
 # SID
-Firmware for using the [MOS 6581 SID](https://en.wikipedia.org/wiki/MOS_Technology_6581)(the commodore 64's sound chip) as a MIDI synthesizer.
+Firmware for using the [MOS 6581 SID](https://en.wikipedia.org/wiki/MOS_Technology_6581) (the Commodore 64 sound chip) as a MIDI synthesizer.
 
 Also:
 
