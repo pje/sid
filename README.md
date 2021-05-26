@@ -28,3 +28,5 @@ make upload    # compile and upload to the arduino
 - The SID specsheet, [converted to text](http://www.sidmusic.org/sid/sidtech2.html). Good example of technical writing, but ~~fuzzy~~ wrong on some details
 - [The Insidious manual](https://impactsoundworks.com/docs/inSIDious%20Manual.pdf), which documents a lot of subtle SID characteristics
 - [Sparkfun's "Introduction To MIDI Hardware & Electronic Implementation"](https://learn.sparkfun.com/tutorials/midi-tutorial/hardware--electronic-implementation)
+
+
