@@ -39,15 +39,15 @@ TEST_SOURCES=$(wildcard test/*.c)
 TEST_RUNNERS=test/deque_test test/hash_table_test test/util_test
 
 test/deque_test: test/deque_test.c test/test_helper.h src/deque.h src/list_node.h src/note.h src/hash_table.h
-	clang -std=c11 -Wall -Wextra --debug -g3 test/deque_test.c -o $@
+	clang -std=c11 -Wall -Wextra -lm --debug -g3 test/deque_test.c -o $@
 	chmod +x $@
 
 test/hash_table_test: test/hash_table_test.c test/test_helper.h src/note.h src/hash_table.h src/list_node.h src/note.h
-	clang -std=c11 -Wall -Wextra --debug test/hash_table_test.c -o $@
+	clang -std=c11 -Wall -Wextra -lm --debug test/hash_table_test.c -o $@
 	chmod +x $@
 
 test/util_test: test/util_test.c test/test_helper.h src/util.h
-	clang -std=c11 -Wall -Wextra --debug test/util_test.c -o $@
+	clang -std=c11 -Wall -Wextra -lm --debug test/util_test.c -o $@
 	chmod +x $@
 
 test: $(TEST_RUNNERS)
