@@ -3,6 +3,13 @@
   </image>
 </p>
 
+
+
+
+
+
+
+
 # SID
 Firmware for using the [MOS 6581 SID](https://en.wikipedia.org/wiki/MOS_Technology_6581) as a MIDI synthesizer.
 
