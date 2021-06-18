@@ -10,6 +10,6 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/labeler@cf194d0d38687763391882d1fa7ca3d690ff0e4c
+      - uses: actions/labeler@main
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
