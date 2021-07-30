@@ -1,7 +1,7 @@
 #include "test_helper.h"
 #include "../src/deque.h"
 
-void test_deque_initialize() {
+static void test_deque_initialize() {
   deque *dq = deque_initialize(3, stdout, _note_indexer, _note_node_print_function);
 
   assert_int_eq(3, dq->max_length);
@@ -45,7 +45,7 @@ void test_deque_initialize() {
   assert_null(dq->last->previous->previous->previous);
 }
 
-void test_deque_append_replace() {
+static void test_deque_append_replace() {
   deque *dq = deque_initialize(127, stdout, _note_indexer, _note_node_print_function);
 
   NOTE_FIXTURES;
@@ -83,7 +83,7 @@ void test_deque_append_replace() {
   deque_inspect(dq);
 }
 
-void test_deque_prepend_replace() {
+static void test_deque_prepend_replace() {
   deque *dq = deque_initialize(127, stdout, _note_indexer, _note_node_print_function);
 
   assert_int_eq(127, dq->max_length);
@@ -122,7 +122,7 @@ void test_deque_prepend_replace() {
   deque_inspect(dq);
 }
 
-void test_deque_remove_first() {
+static void test_deque_remove_first() {
   deque *dq = deque_initialize(127, stdout, _note_indexer, _note_node_print_function);
 
   NOTE_FIXTURES;
@@ -152,7 +152,7 @@ void test_deque_remove_first() {
   assert_int_eq(0, deque_length(dq));
 }
 
-void test_deque_remove_last() {
+static void test_deque_remove_last() {
   deque *dq = deque_initialize(127, stdout, _note_indexer, _note_node_print_function);
 
   NOTE_FIXTURES;
@@ -182,7 +182,7 @@ void test_deque_remove_last() {
   assert_int_eq(0, deque_length(dq));
 }
 
-void test_deque_remove_by_key() {
+static void test_deque_remove_by_key() {
   deque *dq = deque_initialize(127, stdout, _note_indexer, _note_node_print_function);
 
   NOTE_FIXTURES;
@@ -215,7 +215,7 @@ void test_deque_remove_by_key() {
   assert_int_eq(0, deque_length(dq));
 }
 
-void test_deque_find_by_key() {
+static void test_deque_find_by_key() {
   deque *dq = deque_initialize(127, stdout, _note_indexer, _note_node_print_function);
 
   NOTE_FIXTURES;

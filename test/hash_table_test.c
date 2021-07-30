@@ -3,7 +3,7 @@
 #define HASH_TABLE_VAL struct note // easier to test than node*
 #include "../src/hash_table.h"
 
-void test_hash_table_initialize() {
+static void test_hash_table_initialize() {
   hash_table *h = hash_table_initialize(3);
 
   assert_int_eq(3, h->max_size);
@@ -13,7 +13,7 @@ void test_hash_table_initialize() {
   hash_table_free(h);
 }
 
-void test_hash_table_get_set() {
+static void test_hash_table_get_set() {
   hash_table *h = hash_table_initialize(3);
   NOTE_FIXTURES;
 
@@ -77,7 +77,7 @@ void test_hash_table_get_set() {
   assert_int_eq(102, h->array[2].unwrap.value.number);
 }
 
-void test_hash_table_remove() {
+static void test_hash_table_remove() {
   hash_table *h = hash_table_initialize(3);
   NOTE_FIXTURES;
 
@@ -121,7 +121,7 @@ void test_hash_table_remove() {
   assert_false(h->array[collision_index_2].exists);
 }
 
-void test_hash_table_load_factor() {
+static void test_hash_table_load_factor() {
   hash_table *h = hash_table_initialize(3);
   NOTE_FIXTURES;
 
