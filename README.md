@@ -8,8 +8,12 @@ Firmware for using the [MOS 6581 SID](https://en.wikipedia.org/wiki/MOS_Technolo
 
 Also:
 
-  - [A Max4Live object](data/SID.amxd) to control the SID through Ableton Live
-  - [A fritzing sketch](data/SID_shield.fzz) that (mostly correctly?) captures the wiring on the hand-soldered shield prototype I use
+  1. [A fritzing sketch](data/SID_shield.fzz) that somewhat describes the wiring on the hand-soldered shield I use
+  2. [A Max4Live object](data/SID.amxd) to control the SID through Ableton Live:
+
+<p align=center>
+  <image src=data/sid_m4l_device.png height=100 align=center> </image>
+</p>
 
 ### Status
 
