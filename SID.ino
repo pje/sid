@@ -186,10 +186,10 @@ void handle_voice_release_change(byte voice, byte envelope_value) {
 
 void handle_voice_waveform_change(byte voice, byte waveform, bool on) {
   if (polyphony == 1) {
-    sid_toggle_waveform(voice, waveform, on);
+    sid_set_waveform(voice, waveform, on);
   } else {
     for (unsigned char i = 0; i < 3; i++) {
-      sid_toggle_waveform(i, waveform, on);
+      sid_set_waveform(i, waveform, on);
     }
   }
 }

@@ -16,7 +16,11 @@ typedef unsigned int word;
 #define lowByte(w) ((uint8_t) ((w) & 0xff))
 #define highByte(w) ((uint8_t) ((w) >> 8))
 
+// returns the last four bits of a byte
+//    e.g. lowNibble(0B10001111) == 0B00001111
 byte lowNibble(byte b) { return(b & 0B00001111); }
+// returns the first four bits of a byte
+//    e.g. lowNibble(0B10001111) == 0B00001000
 byte highNibble(byte b) { return((b & 0B11110000) >> 4); }
 
 void print_byte_in_binary(byte b) {

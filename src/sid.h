@@ -111,7 +111,6 @@ void sid_transfer(byte address, byte data);
 void sid_zero_all_registers();
 void sid_set_volume(byte level);
 void sid_set_waveform(byte voice, byte waveform_mask, bool on);
-void sid_toggle_waveform(byte voice, byte waveform_mask, bool on);
 void sid_set_ring_mod(byte voice, bool on);
 void sid_set_test(byte voice, bool on);
 void sid_set_sync(byte voice, bool on);
@@ -199,20 +198,10 @@ void sid_zero_waveform(byte voice) {
   sid_transfer(address, data);
 };
 
+// waveform bits are additive!
+// e.g. turning on square and noise results in some combination of the two
 void sid_set_waveform(byte voice, byte waveform_mask, bool on) {
-  byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL;
-  byte data = sid_state_bytes[address] & 0B00001111;
-
-  if (on) {
-    data |= waveform_mask;
-  } else {
-    data &= ~waveform_mask;
-  }
-
-  sid_transfer(address, data);
-}
-
-void sid_toggle_waveform(byte voice, byte waveform_mask, bool on) {
+  waveform_mask &= 0B11110000; // ensure we can't overwrite the last nibble, which contains data unrelated to the voice's waveform
   byte address = (voice * 7) + SID_REGISTER_OFFSET_VOICE_CONTROL;
   byte data = sid_state_bytes[address];
 

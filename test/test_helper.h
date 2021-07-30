@@ -4,6 +4,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include "../src/util.h"
 
 // here's the test framework
 
@@ -11,9 +12,21 @@ volatile unsigned int TEST_FAILURE_COUNT = 0;
 #define EPSILON 0.00001
 #define varname(var) #var
 
+#define reset_color() {                                                        \
+  printf("\033[0m");                                                           \
+}
+
+#define color_red() {                                                          \
+  printf("\033[0;31m");                                                        \
+}
+
+#define color_green() {                                                        \
+  printf("\033[0;32m");                                                        \
+}
+
 #define assert_null(thing) {                                                   \
   if (thing != NULL) {                                                         \
-    printf("\n%s:%d in %s(): \n\tfailure: expected `%s' to be NULL\n",         \
+    printf("\n%s:%d in %s(): \n\tfailure! expected `%s' to be NULL\n",         \
             __FILE__, __LINE__, __func__, varname(thing));                     \
     TEST_FAILURE_COUNT++;                                                      \
   } else {                                                                     \
@@ -23,7 +36,7 @@ volatile unsigned int TEST_FAILURE_COUNT = 0;
 
 #define assert_not_null(thing) {                                               \
   if (thing == NULL) {                                                         \
-    printf("\n%s:%d in %s(): \n\tfailure: did not expect `%s' to be NULL\n",   \
+    printf("\n%s:%d in %s(): \n\tfailure! did not expect `%s' to be NULL\n",   \
             __FILE__, __LINE__, __func__, varname(thing));                     \
     TEST_FAILURE_COUNT++;                                                      \
   } else {                                                                     \
@@ -33,7 +46,7 @@ volatile unsigned int TEST_FAILURE_COUNT = 0;
 
 #define assert_true(thing) {                                                   \
   if (thing != true) {                                                         \
-    printf("\n%s:%d in %s(): \n\tfailure: expected `%s' to be true, got %d\n", \
+    printf("\n%s:%d in %s(): \n\tfailure! expected `%s' to be true, got %d\n", \
             __FILE__, __LINE__, __func__, varname(thing), thing);              \
     TEST_FAILURE_COUNT++;                                                      \
   } else {                                                                     \
@@ -43,7 +56,7 @@ volatile unsigned int TEST_FAILURE_COUNT = 0;
 
 #define assert_false(thing) {                                                  \
   if (thing != false) {                                                        \
-    printf("\n%s:%d in %s(): \n\tfailure: expected `%s' to be false, got %d\n",\
+    printf("\n%s:%d in %s(): \n\tfailure! expected `%s' to be false, got %d\n",\
             __FILE__, __LINE__, __func__, varname(thing), thing);              \
     TEST_FAILURE_COUNT++;                                                      \
   } else {                                                                     \
@@ -54,7 +67,7 @@ volatile unsigned int TEST_FAILURE_COUNT = 0;
 #define assert_float_eq(expected, actual) {                                    \
   double diff = fabs(expected - actual);                                       \
   if (diff > EPSILON) {                                                        \
-    printf("\n%s:%d in %s(): \n\tfailure: expected %lf, got %lf\n",            \
+    printf("\n%s:%d in %s(): \n\tfailure! expected %lf, got %lf\n",            \
       __FILE__, __LINE__, __func__, expected, actual);                         \
     TEST_FAILURE_COUNT++;                                                      \
   } else {                                                                     \
@@ -64,8 +77,28 @@ volatile unsigned int TEST_FAILURE_COUNT = 0;
 
 #define assert_int_eq(expected, actual) {                                      \
   if (expected != actual) {                                                    \
-    printf("\n%s:%d in %s(): \n\tfailure: expected %i, got %i\n",              \
+    printf("\n%s:%d in %s(): \n\tfailure! expected %i, got %i\n",              \
       __FILE__, __LINE__, __func__, expected, actual);                         \
+    TEST_FAILURE_COUNT++;                                                      \
+  } else {                                                                     \
+    printf(".");                                                               \
+  }                                                                            \
+}
+
+#define assert_byte_eq(expected, actual) {                                     \
+  if (expected != actual) {                                                    \
+    printf("\n%s:%d in %s(): \n\tfailure! expected: ",                         \
+      __FILE__, __LINE__, __func__);                                           \
+    color_green();                                                             \
+    printf("0B");                                                              \
+    print_byte_in_binary(expected);                                            \
+    reset_color();                                                             \
+    printf("\n\t              got: ");                                         \
+    color_red()                                                                \
+    printf("0B");                                                              \
+    print_byte_in_binary(actual);                                              \
+    reset_color();                                                             \
+    printf("\n");                                                              \
     TEST_FAILURE_COUNT++;                                                      \
   } else {                                                                     \
     printf(".");                                                               \
@@ -74,7 +107,7 @@ volatile unsigned int TEST_FAILURE_COUNT = 0;
 
 #define assert_long_eq(expected, actual) {                                     \
   if (expected != actual) {                                                    \
-    printf("\n%s:%d in %s(): \n\tfailure: expected %zu, got %zu\n",            \
+    printf("\n%s:%d in %s(): \n\tfailure! expected %zu, got %zu\n",            \
       __FILE__, __LINE__, __func__, expected, actual);                         \
     TEST_FAILURE_COUNT++;                                                      \
   } else {                                                                     \

@@ -36,7 +36,7 @@ clean:
 	rm -rf .clangd
 
 TEST_SOURCES=$(wildcard test/*.c)
-TEST_RUNNERS=test/deque_test test/hash_table_test test/util_test
+TEST_RUNNERS=test/deque_test test/hash_table_test test/sid_test test/util_test
 
 test/deque_test: test/deque_test.c test/test_helper.h src/deque.h src/list_node.h src/note.h src/hash_table.h
 	clang -std=c11 -Wall -Wextra -lm --debug -g3 test/deque_test.c -o $@
@@ -48,6 +48,10 @@ test/hash_table_test: test/hash_table_test.c test/test_helper.h src/note.h src/h
 
 test/util_test: test/util_test.c test/test_helper.h src/util.h
 	clang -std=c11 -Wall -Wextra -lm --debug test/util_test.c -o $@
+	chmod +x $@
+
+test/sid_test: test/sid_test.c test/test_helper.h src/sid.h src/util.h
+	clang -std=c11 -Wall -Wextra -lm --debug test/sid_test.c -o $@
 	chmod +x $@
 
 test: $(TEST_RUNNERS)
