@@ -7,7 +7,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, foo, bar, baz]
     steps:
       - uses: actions/checkout@v2
       - name: Tests
