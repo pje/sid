@@ -7,7 +7,7 @@ on:
 
 jobs:
   test:
-    runs-on: [self-hosted, foo, bar, baz]
+    runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@v2
       - name: Tests
