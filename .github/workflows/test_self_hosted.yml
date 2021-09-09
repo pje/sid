@@ -1,1 +1,10 @@
+on:
+  workflow_dispatch:
 
+jobs:
+  test:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v2
+      - name: Tests
+        run: make test
