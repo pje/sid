@@ -1,3 +1,4 @@
+name: Test (Self-Hosted)
 on:
   workflow_dispatch:
 
