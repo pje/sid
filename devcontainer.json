@@ -1,7 +1,0 @@
-{
-  "name": "pje/sid",
-  "hostRequirements": {
-    "storage": "32gb",
-    "memory": "16gb"
-  }
-}
