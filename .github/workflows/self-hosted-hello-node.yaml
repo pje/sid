@@ -1,0 +1,12 @@
+name: Self-Hosted Hello Node
+
+on: 
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+jobs:
+  build:
+    runs-on: [ self-hosted ]
+    steps:
+      - name: Hello
+        run: node --version
