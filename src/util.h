@@ -79,6 +79,10 @@ float linear_envelope(float a, float d, float s, float r, float seconds, float s
   }
 }
 
+// there's apparently not widespread agreement on which frequency midi notes
+// represent. What we have below is "scientific pitch notation". Ableton, maxmsp
+// and garageband use C3, which is shifted an octave lower.
+// https://en.wikipedia.org/wiki/Scientific_pitch_notation#See_also
 static const float note_frequency_lookup_table[] = {
   16.351597831287414,
   17.323914436054505,
@@ -178,10 +182,6 @@ static const float note_frequency_lookup_table[] = {
   3951.066410048992
 };
 
-// there's apparently not widespread agreement on which frequency midi notes
-// represent. What we have below is "scientific pitch notation". Ableton, maxmsp
-// and garageband use C3, which is shifted an octave lower.
-// https://en.wikipedia.org/wiki/Scientific_pitch_notation#See_also
 const float TWELFTH_ROOT_OF_TWO = 1.0594630943592953;
 const unsigned int base_number = 57;
 const unsigned int base_freq = 440;
