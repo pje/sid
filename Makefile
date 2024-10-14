@@ -20,13 +20,13 @@ $(ARDUINO_HARDWARE_DIR)/boards.local.txt: $(CURDIR)/config/arduino_overrides/boa
 	cp $< $@
 
 build: $(ARDUINO_HARDWARE_DIR)/boards.local.txt $(ARDUINO_HARDWARE_DIR)/variants/micro_norxled/pins_arduino.h
-	arduino-cli compile --fqbn arduino:avr:micro --verbose --build-properties "compiler.warning_flags=-Wpedantic,$(BUILD_PROPERTIES)" SID.ino
+	arduino-cli compile --fqbn arduino:avr:micro --verbose --build-properties "compiler.warning_flags=-Wpedantic,$(BUILD_PROPERTIES)" sid.ino
 
 upload: build
-	arduino-cli upload --port "$(BOARD_PORT)" --fqbn arduino:avr:micro --verbose SID.ino
+	arduino-cli upload --port "$(BOARD_PORT)" --fqbn arduino:avr:micro --verbose sid.ino
 
 format:
-	clang-format -i SID.ino $(SOURCES) $(HEADERS)
+	clang-format -i sid.ino $(SOURCES) $(HEADERS)
 
 clean:
 	arduino-cli cache clean
